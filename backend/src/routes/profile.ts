@@ -1,10 +1,29 @@
 import { Router } from "express";
 import { z } from "zod";
+import multer from "multer";
+import rateLimit from "express-rate-limit";
 import { prisma } from "../lib/prisma";
+import { supabaseAdmin } from "../lib/supabase";
+import { HttpError } from "../lib/httpError";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { requireAuth } from "../middleware/auth";
 
 const router = Router();
+const avatarMaxSizeMb = Number(process.env.AVATAR_MAX_SIZE_MB || 5);
+const avatarMaxSizeBytes = avatarMaxSizeMb * 1024 * 1024;
+const avatarBucket = process.env.SUPABASE_AVATAR_BUCKET || "avatars";
+const avatarUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: avatarMaxSizeBytes },
+});
+const allowedAvatarTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+const avatarLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many avatar updates. Try again later." },
+});
 
 const optionalUrl = z
   .string()
@@ -110,6 +129,91 @@ router.patch(
         university: profile.institution,
       },
     });
+  }),
+);
+
+router.post(
+  "/me/avatar",
+  requireAuth,
+  avatarLimiter,
+  (req, res, next) => {
+    avatarUpload.single("avatar")(req, res, (err) => {
+      if (!err) return next();
+      if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
+        return next(new HttpError(400, `Image must be ${avatarMaxSizeMb}MB or smaller.`));
+      }
+      return next(new HttpError(400, "Invalid avatar upload payload."));
+    });
+  },
+  asyncHandler(async (req, res) => {
+    const file = req.file;
+    if (!file) {
+      throw new HttpError(400, "Please select an image to upload.");
+    }
+    if (!allowedAvatarTypes.has(file.mimetype)) {
+      throw new HttpError(400, "Only JPEG, PNG, and WebP images are supported.");
+    }
+    if (file.size > avatarMaxSizeBytes) {
+      throw new HttpError(400, `Image must be ${avatarMaxSizeMb}MB or smaller.`);
+    }
+
+    const ext = file.mimetype === "image/png" ? "png" : file.mimetype === "image/webp" ? "webp" : "jpg";
+    const objectPath = `${req.user!.id}/avatar.${ext}`;
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from(avatarBucket)
+      .upload(objectPath, file.buffer, {
+        upsert: true,
+        contentType: file.mimetype,
+        cacheControl: "3600",
+      });
+    if (uploadError) {
+      throw new HttpError(500, "Failed to upload profile image.");
+    }
+
+    const { data: publicUrlData } = supabaseAdmin.storage.from(avatarBucket).getPublicUrl(objectPath);
+    const imageUrl = publicUrlData.publicUrl;
+
+    const profile = await prisma.profile.upsert({
+      where: { userId: req.user!.id },
+      update: { imageUrl },
+      create: { userId: req.user!.id, imageUrl },
+    });
+
+    res.json({ imageUrl, profile });
+  }),
+);
+
+router.delete(
+  "/me/avatar",
+  requireAuth,
+  avatarLimiter,
+  asyncHandler(async (req, res) => {
+    const existing = await prisma.profile.findUnique({
+      where: { userId: req.user!.id },
+      select: { imageUrl: true },
+    });
+
+    if (existing?.imageUrl) {
+      try {
+        const parsed = new URL(existing.imageUrl);
+        const marker = `/storage/v1/object/public/${avatarBucket}/`;
+        const idx = parsed.pathname.indexOf(marker);
+        if (idx >= 0) {
+          const objectPath = parsed.pathname.slice(idx + marker.length);
+          if (objectPath) {
+            await supabaseAdmin.storage.from(avatarBucket).remove([objectPath]);
+          }
+        }
+      } catch (_) {}
+    }
+
+    const profile = await prisma.profile.upsert({
+      where: { userId: req.user!.id },
+      update: { imageUrl: null },
+      create: { userId: req.user!.id, imageUrl: null },
+    });
+
+    res.json({ imageUrl: "", profile });
   }),
 );
 

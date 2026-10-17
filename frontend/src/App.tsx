@@ -1,4 +1,4 @@
-import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import {
   api,
   getStoredAccount,
@@ -43,6 +43,11 @@ const POPULAR_SKILLS = [
   "Machine Learning",
 ];
 
+const THEME_STORAGE_KEY = "campus-connect-theme";
+const AVATAR_MAX_SIZE_MB = Number((import.meta as any).env?.VITE_AVATAR_MAX_SIZE_MB || 5);
+const AVATAR_MAX_SIZE_BYTES = AVATAR_MAX_SIZE_MB * 1024 * 1024;
+const AVATAR_ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
 function routeFromHash(): View {
   const hash = window.location.hash.slice(1).split("?")[0] as View;
   const path = window.location.pathname.replace(/^\//, "").split("/")[0] as View;
@@ -63,6 +68,40 @@ function routeFromHash(): View {
     "notifications",
   ];
   return validRoutes.includes(target) ? target : "home";
+}
+
+function resolveTheme(stored?: string | null): "light" | "dark" {
+  if (stored === "light" || stored === "dark") return stored;
+  return window.matchMedia?.("(prefers-color-scheme: dark)")?.matches ? "dark" : "light";
+}
+
+function readThemeFromStorage() {
+  try {
+    return localStorage.getItem(THEME_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function applyTheme(theme: "light" | "dark") {
+  document.documentElement.setAttribute("data-theme", theme);
+}
+
+function authStatusFromUrl() {
+  const hashParams = new URLSearchParams(window.location.hash.split("?")[1] ?? "");
+  const searchParams = new URLSearchParams(window.location.search);
+  const error = hashParams.get("error") || searchParams.get("error");
+  if (!error) return "";
+  if (error === "google_not_configured") {
+    return "Google sign-in is not configured yet. Ask an admin to set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET on the backend.";
+  }
+  if (error === "google_auth_failed") {
+    return "Google sign-in was cancelled before completing authentication.";
+  }
+  if (error === "missing_id_token" || error === "invalid_payload" || error === "callback_failed") {
+    return "Google sign-in failed. Please try again.";
+  }
+  return "Google sign-in could not be completed.";
 }
 
 function Icon({
@@ -102,6 +141,48 @@ function ArrowIcon() {
   );
 }
 
+function ThemeToggle({
+  theme,
+  onToggle,
+}: {
+  theme: "light" | "dark";
+  onToggle: () => void;
+}) {
+  const isDark = theme === "dark";
+  return (
+    <button
+      aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+      aria-pressed={isDark}
+      className="theme-toggle"
+      onClick={onToggle}
+      title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+      type="button"
+    >
+      {isDark ? (
+        <Icon size={18}>
+          <path
+            d="M12 4V2m0 20v-2m8-8h2M2 12h2m13.66 5.66 1.41 1.41M4.93 4.93l1.41 1.41m0 11.32-1.41 1.41m12.73-12.73 1.41-1.41M12 17a5 5 0 1 1 0-10 5 5 0 0 1 0 10Z"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="1.7"
+          />
+        </Icon>
+      ) : (
+        <Icon size={18}>
+          <path
+            d="M21 12.79A9 9 0 1 1 11.21 3c.15 0 .3 0 .45.02A7 7 0 0 0 21 12.79Z"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="1.7"
+          />
+        </Icon>
+      )}
+    </button>
+  );
+}
+
 function Logo({ onClick }: { onClick: () => void }) {
   return (
     <button className="brand" onClick={onClick} type="button">
@@ -117,51 +198,19 @@ function Logo({ onClick }: { onClick: () => void }) {
 
 function GoogleButton({
   text = "Continue with Google",
-  onSuccess,
   onError,
   disabled = false,
 }: {
   text?: string;
-  onSuccess: (credential: string) => void;
   onError: (error: string) => void;
   disabled?: boolean;
 }) {
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    const clientId = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID;
-    if (typeof window !== "undefined" && (window as any).google?.accounts?.id && clientId) {
-      try {
-        (window as any).google.accounts.id.initialize({
-          client_id: clientId,
-          callback: (response: any) => {
-            if (response?.credential) {
-              setLoading(true);
-              onSuccess(response.credential);
-            } else {
-              onError("Google sign in was cancelled or returned no credential.");
-            }
-          },
-        });
-      } catch (e) {
-        console.warn("GIS initialization warning:", e);
-      }
-    }
-  }, []);
-
   const handleClick = async () => {
     setLoading(true);
     try {
-      const clientId = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID;
-      if (typeof window !== "undefined" && (window as any).google?.accounts?.id && clientId) {
-        (window as any).google.accounts.id.prompt((notification: any) => {
-          if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-            fallbackAuth();
-          }
-        });
-      } else {
-        await fallbackAuth();
-      }
+      await fallbackAuth();
     } catch (err: any) {
       setLoading(false);
       onError(err.message || "Failed to initiate Google sign in.");
@@ -217,9 +266,13 @@ function GoogleButton({
 function Header({
   navigate,
   simple = false,
+  theme,
+  onToggleTheme,
 }: {
   navigate: (view: View) => void;
   simple?: boolean;
+  theme: "light" | "dark";
+  onToggleTheme: () => void;
 }) {
   return (
     <header className={`site-header ${simple ? "simple" : ""}`}>
@@ -247,6 +300,7 @@ function Header({
             </button>
           </nav>
           <div className="header-actions">
+            <ThemeToggle onToggle={onToggleTheme} theme={theme} />
             <button className="text-button" onClick={() => navigate("login")} type="button">
               Log in
             </button>
@@ -261,27 +315,38 @@ function Header({
         </>
       )}
       {simple && (
-        <button className="text-button back-home" onClick={() => navigate("home")} type="button">
-          <Icon size={17}>
-            <path
-              d="M19 12H5m6 6-6-6 6-6"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="1.8"
-            />
-          </Icon>
-          Back to home
-        </button>
+        <div className="header-actions">
+          <ThemeToggle onToggle={onToggleTheme} theme={theme} />
+          <button className="text-button back-home" onClick={() => navigate("home")} type="button">
+            <Icon size={17}>
+              <path
+                d="M19 12H5m6 6-6-6 6-6"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="1.8"
+              />
+            </Icon>
+            Back to home
+          </button>
+        </div>
       )}
     </header>
   );
 }
 
-function Landing({ navigate }: { navigate: (view: View) => void }) {
+function Landing({
+  navigate,
+  theme,
+  onToggleTheme,
+}: {
+  navigate: (view: View) => void;
+  theme: "light" | "dark";
+  onToggleTheme: () => void;
+}) {
   return (
     <div className="page-shell">
-      <Header navigate={navigate} />
+      <Header navigate={navigate} onToggleTheme={onToggleTheme} theme={theme} />
       <main>
         <section className="hero">
           <div className="hero-copy">
@@ -560,9 +625,13 @@ function AuthAside() {
 function Signup({
   navigate,
   onAccountCreated,
+  theme,
+  onToggleTheme,
 }: {
   navigate: (view: View) => void;
   onAccountCreated: (account: UserAccount) => void;
+  theme: "light" | "dark";
+  onToggleTheme: () => void;
 }) {
   const [form, setForm] = useState({
     name: "",
@@ -582,20 +651,6 @@ function Signup({
     setForm((current) => ({ ...current, [key]: value }));
     setErrors((current) => ({ ...current, [key]: "" }));
     setGeneralError("");
-  };
-
-  const handleGoogleSuccess = async (credential: string) => {
-    setBusy(true);
-    setGeneralError("");
-    try {
-      const res = await api.googleAuth({ credential });
-      onAccountCreated(res.user);
-      navigate(res.user.onboardingComplete ? "dashboard" : "onboarding");
-    } catch (err: any) {
-      setGeneralError(err.message || "Google sign-up failed. Please try again.");
-    } finally {
-      setBusy(false);
-    }
   };
 
   const submit = async (event: FormEvent) => {
@@ -636,7 +691,7 @@ function Signup({
 
   return (
     <div className="auth-page">
-      <Header navigate={navigate} simple />
+      <Header navigate={navigate} onToggleTheme={onToggleTheme} simple theme={theme} />
       <div className="auth-layout">
         <AuthAside />
         <main className="auth-main">
@@ -650,7 +705,6 @@ function Signup({
             <GoogleButton
               disabled={busy}
               onError={(err) => setGeneralError(err)}
-              onSuccess={handleGoogleSuccess}
               text="Sign up with Google"
             />
 
@@ -795,10 +849,14 @@ function Verify({
   account,
   navigate,
   onVerified,
+  theme,
+  onToggleTheme,
 }: {
   account: UserAccount | null;
   navigate: (view: View) => void;
   onVerified: () => void;
+  theme: "light" | "dark";
+  onToggleTheme: () => void;
 }) {
   const [verifying, setVerifying] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
@@ -807,7 +865,7 @@ function Verify({
   if (!account) {
     return (
       <div className="auth-page">
-        <Header navigate={navigate} simple />
+        <Header navigate={navigate} onToggleTheme={onToggleTheme} simple theme={theme} />
         <main className="verify-main">
           <h1>Account Verification</h1>
           <p>Please log in or create an account first.</p>
@@ -836,7 +894,7 @@ function Verify({
 
   return (
     <div className="auth-page">
-      <Header navigate={navigate} simple />
+      <Header navigate={navigate} onToggleTheme={onToggleTheme} simple theme={theme} />
       <main className="verify-main">
         <div className="mail-illustration">
           <div className="mail-ring" />
@@ -901,29 +959,40 @@ function Verify({
 function Login({
   navigate,
   onLoginSuccess,
+  theme,
+  onToggleTheme,
 }: {
   navigate: (view: View) => void;
   onLoginSuccess: (account: UserAccount, remember: boolean) => void;
+  theme: "light" | "dark";
+  onToggleTheme: () => void;
 }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(() => authStatusFromUrl());
   const [busy, setBusy] = useState(false);
 
-  const handleGoogleSuccess = async (credential: string) => {
-    setBusy(true);
-    setError("");
-    try {
-      const res = await api.googleAuth({ credential });
-      onLoginSuccess(res.user, true);
-      navigate(res.user.onboardingComplete ? "dashboard" : "onboarding");
-    } catch (err: any) {
-      setError(err.message || "Google sign-in failed. Please try again.");
-    } finally {
-      setBusy(false);
+  useEffect(() => {
+    const [hashRoute, hashQuery] = window.location.hash.split("?");
+    const hashParams = new URLSearchParams(hashQuery ?? "");
+    const searchParams = new URLSearchParams(window.location.search);
+    let changed = false;
+    if (hashParams.has("error")) {
+      hashParams.delete("error");
+      changed = true;
     }
-  };
+    if (searchParams.has("error")) {
+      searchParams.delete("error");
+      changed = true;
+    }
+    if (changed) {
+      const nextHashQuery = hashParams.toString();
+      const nextSearch = searchParams.toString();
+      const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ""}${hashRoute}${nextHashQuery ? `?${nextHashQuery}` : ""}`;
+      window.history.replaceState({}, document.title, nextUrl);
+    }
+  }, []);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -946,7 +1015,7 @@ function Login({
 
   return (
     <div className="auth-page">
-      <Header navigate={navigate} simple />
+      <Header navigate={navigate} onToggleTheme={onToggleTheme} simple theme={theme} />
       <div className="auth-layout login-layout">
         <AuthAside />
         <main className="auth-main">
@@ -971,7 +1040,6 @@ function Login({
             <GoogleButton
               disabled={busy}
               onError={(err) => setError(err)}
-              onSuccess={handleGoogleSuccess}
               text="Log in with Google"
             />
 
@@ -1044,7 +1112,15 @@ function Login({
   );
 }
 
-function ForgotPassword({ navigate }: { navigate: (view: View) => void }) {
+function ForgotPassword({
+  navigate,
+  theme,
+  onToggleTheme,
+}: {
+  navigate: (view: View) => void;
+  theme: "light" | "dark";
+  onToggleTheme: () => void;
+}) {
   const [email, setEmail] = useState("");
   const [sentLink, setSentLink] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -1066,7 +1142,7 @@ function ForgotPassword({ navigate }: { navigate: (view: View) => void }) {
 
   return (
     <div className="auth-page">
-      <Header navigate={navigate} simple />
+      <Header navigate={navigate} onToggleTheme={onToggleTheme} simple theme={theme} />
       <main className="recovery-main">
         <span className="recovery-icon">
           <Icon size={30}>
@@ -1121,7 +1197,15 @@ function ForgotPassword({ navigate }: { navigate: (view: View) => void }) {
   );
 }
 
-function ResetPassword({ navigate }: { navigate: (view: View) => void }) {
+function ResetPassword({
+  navigate,
+  theme,
+  onToggleTheme,
+}: {
+  navigate: (view: View) => void;
+  theme: "light" | "dark";
+  onToggleTheme: () => void;
+}) {
   const params = new URLSearchParams(window.location.hash.split("?")[1] ?? window.location.search);
   const token = params.get("token") || undefined;
   const [password, setPassword] = useState("");
@@ -1149,7 +1233,7 @@ function ResetPassword({ navigate }: { navigate: (view: View) => void }) {
 
   return (
     <div className="auth-page">
-      <Header navigate={navigate} simple />
+      <Header navigate={navigate} onToggleTheme={onToggleTheme} simple theme={theme} />
       <main className="recovery-main">
         <span className="form-kicker">SECURE RESET</span>
         <h1>{done ? "Password updated" : "Choose a new password"}</h1>
@@ -1330,6 +1414,10 @@ function AppShell({
   navigate,
   onLogout,
   onSaveProfile,
+  onUploadAvatar,
+  onRemoveAvatar,
+  theme,
+  onToggleTheme,
   projects,
   notices,
   onCreateProject,
@@ -1344,6 +1432,10 @@ function AppShell({
   navigate: (view: View) => void;
   onLogout: () => void;
   onSaveProfile: (profile: Partial<UserAccount>) => Promise<void>;
+  onUploadAvatar: (file: File) => Promise<void>;
+  onRemoveAvatar: () => Promise<void>;
+  theme: "light" | "dark";
+  onToggleTheme: () => void;
   projects: Project[];
   notices: Notice[];
   onCreateProject: (project: any) => Promise<void>;
@@ -1410,17 +1502,20 @@ function AppShell({
       </aside>
       <div className="app-content">
         <header className="app-topbar">
-          <div>
+          <div className="topbar-status">
             <span className="status-dot" />
             Campus community online
           </div>
-          <button onClick={() => navigate("profile")} type="button">
-            <span style={account.imageUrl ? { backgroundImage: `url(${account.imageUrl})`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundColor: 'transparent' } : {}}>{!account.imageUrl && initials}</span>
-            <div>
-              <strong>{account.name}</strong>
-              <small>{account.accountType}</small>
-            </div>
-          </button>
+          <div className="topbar-actions">
+            <ThemeToggle onToggle={onToggleTheme} theme={theme} />
+            <button className="topbar-user" onClick={() => navigate("profile")} type="button">
+              <span style={account.imageUrl ? { backgroundImage: `url(${account.imageUrl})`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundColor: 'transparent' } : {}}>{!account.imageUrl && initials}</span>
+              <div>
+                <strong>{account.name}</strong>
+                <small>{account.accountType}</small>
+              </div>
+            </button>
+          </div>
         </header>
         <main>
           {account.onboardingSkipped && !account.onboardingComplete && (
@@ -1433,7 +1528,12 @@ function AppShell({
           )}
 
           {view === "profile" ? (
-            <Profile account={account} onSave={onSaveProfile} />
+            <Profile
+              account={account}
+              onRemoveAvatar={onRemoveAvatar}
+              onSave={onSaveProfile}
+              onUploadAvatar={onUploadAvatar}
+            />
           ) : view === "projects" ? (
             <ProjectsHub
               account={account}
@@ -2291,17 +2391,38 @@ function PlaceholderPage({ view }: { view: View }) {
 function Profile({
   account,
   onSave,
+  onUploadAvatar,
+  onRemoveAvatar,
 }: {
   account: UserAccount;
   onSave: (profile: Partial<UserAccount>) => Promise<void>;
+  onUploadAvatar: (file: File) => Promise<void>;
+  onRemoveAvatar: () => Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(account);
   const [busy, setBusy] = useState(false);
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const [avatarFeedback, setAvatarFeedback] = useState<{ type: "error" | "success"; text: string } | null>(
+    null,
+  );
+  const [selectedAvatar, setSelectedAvatar] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string>("");
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     setDraft(account);
+    setSelectedAvatar(null);
+    setAvatarPreview("");
   }, [account]);
+
+  useEffect(() => {
+    return () => {
+      if (avatarPreview) {
+        URL.revokeObjectURL(avatarPreview);
+      }
+    };
+  }, [avatarPreview]);
 
   const toggleSkill = (skill: string) =>
     setDraft((current) => ({
@@ -2319,6 +2440,76 @@ function Profile({
       setEditing(false);
     } finally {
       setBusy(false);
+    }
+  };
+
+  const selectAvatarFile = () => {
+    fileInputRef.current?.click();
+  };
+
+  const onAvatarSelected = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setAvatarFeedback(null);
+    if (!AVATAR_ALLOWED_TYPES.includes(file.type)) {
+      setSelectedAvatar(null);
+      setAvatarPreview("");
+      setAvatarFeedback({ type: "error", text: "Please choose a JPEG, PNG, or WebP image." });
+      return;
+    }
+    if (file.size > AVATAR_MAX_SIZE_BYTES) {
+      setSelectedAvatar(null);
+      setAvatarPreview("");
+      setAvatarFeedback({ type: "error", text: `Image must be ${AVATAR_MAX_SIZE_MB}MB or smaller.` });
+      return;
+    }
+    if (avatarPreview) {
+      URL.revokeObjectURL(avatarPreview);
+    }
+    setSelectedAvatar(file);
+    setAvatarPreview(URL.createObjectURL(file));
+  };
+
+  const saveAvatar = async () => {
+    if (!selectedAvatar) return;
+    setAvatarBusy(true);
+    setAvatarFeedback(null);
+    try {
+      await onUploadAvatar(selectedAvatar);
+      setAvatarFeedback({ type: "success", text: "Profile photo updated." });
+      setSelectedAvatar(null);
+      if (avatarPreview) {
+        URL.revokeObjectURL(avatarPreview);
+      }
+      setAvatarPreview("");
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    } catch (err: any) {
+      setAvatarFeedback({ type: "error", text: err.message || "Failed to upload profile photo." });
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
+
+  const removeAvatar = async () => {
+    setAvatarBusy(true);
+    setAvatarFeedback(null);
+    try {
+      await onRemoveAvatar();
+      setSelectedAvatar(null);
+      if (avatarPreview) {
+        URL.revokeObjectURL(avatarPreview);
+      }
+      setAvatarPreview("");
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+      setAvatarFeedback({ type: "success", text: "Profile photo removed." });
+    } catch (err: any) {
+      setAvatarFeedback({ type: "error", text: err.message || "Failed to remove profile photo." });
+    } finally {
+      setAvatarBusy(false);
     }
   };
 
@@ -2344,8 +2535,52 @@ function Profile({
         )}
       </div>
       <form className="profile-card" onSubmit={save}>
-        <div className="profile-avatar" style={draft.imageUrl ? { backgroundImage: `url(${draft.imageUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}>
-          {!draft.imageUrl && initials}
+        <div className="profile-avatar-wrap">
+          <div
+            className={`profile-avatar ${avatarBusy ? "loading" : ""}`}
+            style={avatarPreview || draft.imageUrl ? { backgroundImage: `url(${avatarPreview || draft.imageUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : {}}
+          >
+            {!avatarPreview && !draft.imageUrl && initials}
+            {avatarBusy && <span className="avatar-spinner" aria-hidden="true" />}
+          </div>
+          <input
+            accept="image/jpeg,image/png,image/webp"
+            hidden
+            onChange={onAvatarSelected}
+            ref={fileInputRef}
+            type="file"
+          />
+          <div className="avatar-controls">
+            <button
+              className="avatar-action-btn"
+              disabled={avatarBusy || busy}
+              onClick={selectAvatarFile}
+              type="button"
+            >
+              {draft.imageUrl ? "Replace photo" : "Upload photo"}
+            </button>
+            {selectedAvatar && (
+              <button
+                className="avatar-action-btn"
+                disabled={avatarBusy || busy}
+                onClick={saveAvatar}
+                type="button"
+              >
+                Save photo
+              </button>
+            )}
+            {(draft.imageUrl || avatarPreview) && !selectedAvatar && (
+              <button
+                className="avatar-remove-btn"
+                disabled={avatarBusy || busy}
+                onClick={removeAvatar}
+                type="button"
+              >
+                Remove
+              </button>
+            )}
+          </div>
+          {avatarFeedback && <span className={`avatar-feedback ${avatarFeedback.type}`}>{avatarFeedback.text}</span>}
         </div>
         <div className="profile-fields">
           <div className="field-row">
@@ -2454,6 +2689,37 @@ export default function App() {
   const [internships, setInternships] = useState<Internship[]>([]);
   const [notices, setNotices] = useState<Notice[]>([]);
   const [authenticated, setAuthenticated] = useState<boolean>(() => Boolean(getStoredToken()));
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    const initialTheme = document.documentElement.getAttribute("data-theme");
+    return initialTheme === "dark" || initialTheme === "light"
+      ? initialTheme
+      : resolveTheme(readThemeFromStorage());
+  });
+
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const listener = (event: MediaQueryListEvent) => {
+      const stored = readThemeFromStorage();
+      if (stored === "dark" || stored === "light") return;
+      setTheme(event.matches ? "dark" : "light");
+    };
+    media.addEventListener("change", listener);
+    return () => media.removeEventListener("change", listener);
+  }, []);
+
+  const toggleTheme = () => {
+    setTheme((current) => {
+      const next = current === "dark" ? "light" : "dark";
+      try {
+        localStorage.setItem(THEME_STORAGE_KEY, next);
+      } catch {}
+      return next;
+    });
+  };
 
   // Handle OAuth callback token from URL (hash or search params)
   useEffect(() => {
@@ -2561,6 +2827,28 @@ export default function App() {
     setStoredAccount(updated);
   };
 
+  const handleUploadAvatar = async (file: File) => {
+    if (!account) return;
+    const res = await api.uploadAvatar(file);
+    const updated = {
+      ...account,
+      imageUrl: res.imageUrl || "",
+    };
+    setAccount(updated);
+    setStoredAccount(updated);
+  };
+
+  const handleRemoveAvatar = async () => {
+    if (!account) return;
+    await api.removeAvatar();
+    const updated = {
+      ...account,
+      imageUrl: "",
+    };
+    setAccount(updated);
+    setStoredAccount(updated);
+  };
+
   const handleCreateProject = async (created: any) => {
     await api.createProject(created);
     await loadData();
@@ -2606,7 +2894,14 @@ export default function App() {
 
   // Route protection
   if (protectedViews.includes(view) && (!authenticated || !account)) {
-    return <Login navigate={navigate} onLoginSuccess={handleLoginSuccess} />;
+    return (
+      <Login
+        navigate={navigate}
+        onLoginSuccess={handleLoginSuccess}
+        onToggleTheme={toggleTheme}
+        theme={theme}
+      />
+    );
   }
 
   if (authenticated && account && visitorViews.includes(view)) {
@@ -2620,37 +2915,57 @@ export default function App() {
         onCreateProject={handleCreateProject}
         onJoinProject={handleJoinProject}
         onLogout={handleLogout}
+        onRemoveAvatar={handleRemoveAvatar}
         onReadNotices={handleReadNotices}
         onRequestDecision={handleRequestDecision}
         onSaveProfile={handleSaveProfile}
+        onToggleTheme={toggleTheme}
+        onUploadAvatar={handleUploadAvatar}
         projects={projects}
+        theme={theme}
         view="dashboard"
       />
     );
   }
 
   if (view === "signup") {
-    return <Signup navigate={navigate} onAccountCreated={handleAccountCreated} />;
+    return (
+      <Signup
+        navigate={navigate}
+        onAccountCreated={handleAccountCreated}
+        onToggleTheme={toggleTheme}
+        theme={theme}
+      />
+    );
   }
   if (view === "login") {
-    return <Login navigate={navigate} onLoginSuccess={handleLoginSuccess} />;
+    return (
+      <Login
+        navigate={navigate}
+        onLoginSuccess={handleLoginSuccess}
+        onToggleTheme={toggleTheme}
+        theme={theme}
+      />
+    );
   }
   if (view === "verify") {
     return (
       <Verify
         account={account}
         navigate={navigate}
+        onToggleTheme={toggleTheme}
         onVerified={() => {
           if (account) setAccount({ ...account, verified: true });
         }}
+        theme={theme}
       />
     );
   }
   if (view === "forgot") {
-    return <ForgotPassword navigate={navigate} />;
+    return <ForgotPassword navigate={navigate} onToggleTheme={toggleTheme} theme={theme} />;
   }
   if (view === "reset") {
-    return <ResetPassword navigate={navigate} />;
+    return <ResetPassword navigate={navigate} onToggleTheme={toggleTheme} theme={theme} />;
   }
   if (view === "onboarding" && account) {
     return (
@@ -2678,14 +2993,18 @@ export default function App() {
         onCreateProject={handleCreateProject}
         onJoinProject={handleJoinProject}
         onLogout={handleLogout}
+        onRemoveAvatar={handleRemoveAvatar}
         onReadNotices={handleReadNotices}
         onRequestDecision={handleRequestDecision}
         onSaveProfile={handleSaveProfile}
+        onToggleTheme={toggleTheme}
+        onUploadAvatar={handleUploadAvatar}
         projects={projects}
+        theme={theme}
         view={view}
       />
     );
   }
 
-  return <Landing navigate={navigate} />;
+  return <Landing navigate={navigate} onToggleTheme={toggleTheme} theme={theme} />;
 }

@@ -104,7 +104,9 @@ export function setStoredAccount(account: UserAccount | null, remember: boolean 
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
-  if (init.body && !headers.has("Content-Type")) {
+  const isFormData =
+    typeof FormData !== "undefined" && init.body instanceof FormData;
+  if (init.body && !isFormData && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
   const token = getStoredToken();
@@ -258,6 +260,21 @@ export const api = {
       body: JSON.stringify(body),
     });
     return res;
+  },
+
+  uploadAvatar: async (file: File) => {
+    const form = new FormData();
+    form.append("avatar", file);
+    return request<{ imageUrl: string; profile?: any }>("/api/profile/me/avatar", {
+      method: "POST",
+      body: form,
+    });
+  },
+
+  removeAvatar: async () => {
+    return request<{ imageUrl: string; profile?: any }>("/api/profile/me/avatar", {
+      method: "DELETE",
+    });
   },
 
   listProjects: async (params: { q?: string; skill?: string; category?: string; status?: string } = {}) => {
