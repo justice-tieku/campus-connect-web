@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import multer from "multer";
+import rateLimit from "express-rate-limit";
 import { prisma } from "../lib/prisma";
 import { supabaseAdmin } from "../lib/supabase";
 import { HttpError } from "../lib/httpError";
@@ -16,6 +17,13 @@ const avatarUpload = multer({
   limits: { fileSize: avatarMaxSizeBytes },
 });
 const allowedAvatarTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+const avatarLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many avatar updates. Try again later." },
+});
 
 const optionalUrl = z
   .string()
@@ -127,6 +135,7 @@ router.patch(
 router.post(
   "/me/avatar",
   requireAuth,
+  avatarLimiter,
   (req, res, next) => {
     avatarUpload.single("avatar")(req, res, (err) => {
       if (!err) return next();
@@ -177,6 +186,7 @@ router.post(
 router.delete(
   "/me/avatar",
   requireAuth,
+  avatarLimiter,
   asyncHandler(async (req, res) => {
     const existing = await prisma.profile.findUnique({
       where: { userId: req.user!.id },
