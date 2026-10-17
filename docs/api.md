@@ -23,6 +23,8 @@ Register/login are rate-limited (20 attempts / 15 minutes).
 
 - `GET /api/profile/me` — **Auth.**
 - `PATCH /api/profile/me` — `{ biography, institution, programme, skills[], githubLink, portfolioLink, imageUrl }`. **Auth.** Users can only edit their own profile.
+- `POST /api/profile/me/avatar` — multipart form-data with `avatar` (JPEG/PNG/WebP, default max 5 MB via `AVATAR_MAX_SIZE_MB`). Uploads/replaces the signed-in user avatar and stores only `imageUrl`.
+- `DELETE /api/profile/me/avatar` — removes the signed-in user avatar reference (and storage object when possible).
 
 ## Projects
 

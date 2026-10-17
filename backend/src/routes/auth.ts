@@ -427,18 +427,19 @@ router.get(
   asyncHandler(async (req, res) => {
     const code = typeof req.query.code === "string" ? req.query.code : null;
     const clientOrigin = process.env.CLIENT_ORIGIN || "http://localhost:5173";
+    const loginUrl = `${clientOrigin}/#login`;
     if (!code) {
-      return res.redirect(`${clientOrigin}/login?error=google_auth_failed`);
+      return res.redirect(`${loginUrl}?error=google_auth_failed`);
     }
     const client = getGoogleOAuthClient();
     if (!client) {
-      return res.redirect(`${clientOrigin}/login?error=google_not_configured`);
+      return res.redirect(`${loginUrl}?error=google_not_configured`);
     }
 
     try {
       const { tokens } = await client.getToken(code);
       if (!tokens.id_token) {
-        return res.redirect(`${clientOrigin}/login?error=missing_id_token`);
+        return res.redirect(`${loginUrl}?error=missing_id_token`);
       }
       const ticket = await client.verifyIdToken({
         idToken: tokens.id_token,
@@ -446,7 +447,7 @@ router.get(
       });
       const payload = ticket.getPayload();
       if (!payload?.email) {
-        return res.redirect(`${clientOrigin}/login?error=invalid_payload`);
+        return res.redirect(`${loginUrl}?error=invalid_payload`);
       }
 
       const email = payload.email.toLowerCase();
@@ -454,6 +455,7 @@ router.get(
 
       let user = await prisma.user.findFirst({
         where: { OR: [{ googleId }, { email }] },
+        include: { profile: true },
       });
 
       if (!user) {
@@ -466,19 +468,22 @@ router.get(
             lastName: payload.family_name || payload.name?.split(" ").slice(1).join(" ") || "",
             profile: { create: { imageUrl: payload.picture || null } },
           },
+          include: { profile: true },
         });
       } else if (!user.googleId) {
         user = await prisma.user.update({
           where: { id: user.id },
           data: { googleId },
+          include: { profile: true },
         });
       }
 
       const token = signToken({ userId: user.id, role: user.role });
       setAuthCookie(res, { userId: user.id, role: user.role });
-      res.redirect(`${clientOrigin}/dashboard?token=${encodeURIComponent(token)}`);
+      const destination = user.profile?.onboardingComplete ? "dashboard" : "onboarding";
+      res.redirect(`${clientOrigin}/#${destination}?token=${encodeURIComponent(token)}`);
     } catch (err) {
-      res.redirect(`${clientOrigin}/login?error=callback_failed`);
+      res.redirect(`${loginUrl}?error=callback_failed`);
     }
   }),
 );

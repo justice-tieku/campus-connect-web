@@ -65,6 +65,36 @@ describe("CampusConnect API", () => {
     expect(user!.passwordHash.startsWith("$2")).toBe(true);
   });
 
+  it("rejects unsupported profile avatar types", async () => {
+    const owner = agent();
+    await owner.post("/api/auth/login").send({ email: ownerEmail, password });
+
+    const res = await owner
+      .post("/api/profile/me/avatar")
+      .attach("avatar", Buffer.from("not-an-image"), {
+        filename: "avatar.txt",
+        contentType: "text/plain",
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain("JPEG, PNG, and WebP");
+  });
+
+  it("rejects oversized profile avatar uploads", async () => {
+    const owner = agent();
+    await owner.post("/api/auth/login").send({ email: ownerEmail, password });
+
+    const res = await owner
+      .post("/api/profile/me/avatar")
+      .attach("avatar", Buffer.alloc(6 * 1024 * 1024, 1), {
+        filename: "avatar.png",
+        contentType: "image/png",
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain("5MB");
+  });
+
   it("creates a project, finds it via search, and blocks other students from editing", async () => {
     const owner = agent();
     await owner.post("/api/auth/login").send({ email: ownerEmail, password });
