@@ -61,18 +61,19 @@ export function Layout() {
           {/* Desktop auth */}
           <div className="hidden items-center gap-2 md:flex">
             {user ? (
-              <div className="flex items-center gap-2 rounded-xl bg-surface-100 py-1.5 pl-1.5 pr-3">
-                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-600 text-xs font-bold text-white">
-                  {user.email.charAt(0).toUpperCase()}
+              <>
+                <div className="flex items-center gap-2 rounded-xl bg-surface-100 py-1.5 pl-1.5 pr-3">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-600 text-xs font-bold text-white">
+                    {user.email.charAt(0).toUpperCase()}
+                  </div>
+                  <span className="max-w-[10rem] truncate text-xs font-semibold text-surface-700">
+                    {user.email}
+                  </span>
                 </div>
-                <span className="max-w-[10rem] truncate text-xs font-semibold text-surface-700">
-                  {user.email}
-                </span>
-              </div>
-              <button className="btn-secondary px-4 py-2" onClick={() => void logout()}>
-                Log out
-              </button>
-              </div>
+                <button className="btn-secondary px-4 py-2" onClick={() => void logout()}>
+                  Log out
+                </button>
+              </>
             ) : (
               <>
                 <Link to="/login" className="btn-ghost no-underline">
