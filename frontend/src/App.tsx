@@ -221,9 +221,17 @@ function Header({
   navigate: (view: View) => void;
   simple?: boolean;
 }) {
+  const [dark, setDark] = useState(() => localStorage.getItem("theme") === "dark");
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", dark);
+    localStorage.setItem("theme", dark ? "dark" : "light");
+  }, [dark]);
   return (
     <header className={`site-header ${simple ? "simple" : ""}`}>
       <Logo onClick={() => navigate("home")} />
+      <button type="button" onClick={() => setDark((d) => !d)} style={{ marginLeft: "auto" }}>
+        {dark ? "Light" : "Dark"}
+      </button>
       {!simple && (
         <>
           <nav aria-label="Main navigation" className="desktop-nav">
