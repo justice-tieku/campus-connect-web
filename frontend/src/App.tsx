@@ -5,6 +5,7 @@ import {
   getStoredToken,
   setStoredAccount,
   setStoredToken,
+  touchSession,
   type AccountType,
   type Experience,
   type Internship,
@@ -2476,6 +2477,38 @@ export default function App() {
       }
     } catch (_) {}
   }, []);
+
+  // Log out after a period of inactivity (also applies when returning after closing the tab)
+  useEffect(() => {
+    if (!authenticated) return;
+    let lastTouch = 0;
+    const checkIdle = () => {
+      if (!getStoredToken()) {
+        setAuthenticated(false);
+        setAccount(null);
+        return false;
+      }
+      return true;
+    };
+    const onActivity = () => {
+      const now = Date.now();
+      if (now - lastTouch < 15_000) return;
+      lastTouch = now;
+      if (checkIdle()) touchSession();
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") checkIdle();
+    };
+    const events = ["mousemove", "mousedown", "keydown", "scroll", "touchstart"] as const;
+    events.forEach((e) => window.addEventListener(e, onActivity, { passive: true }));
+    document.addEventListener("visibilitychange", onVisible);
+    const interval = window.setInterval(checkIdle, 60_000);
+    return () => {
+      events.forEach((e) => window.removeEventListener(e, onActivity));
+      document.removeEventListener("visibilitychange", onVisible);
+      window.clearInterval(interval);
+    };
+  }, [authenticated]);
 
   // Sync route on hash/popstate change
   useEffect(() => {

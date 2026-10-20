@@ -65,7 +65,30 @@ export type Notice = {
 
 const API_BASE = (import.meta.env.VITE_API_ORIGIN || "").replace(/\/+$/, "");
 
+export const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
+const LAST_ACTIVE_KEY = "cc_last_active";
+
+export function touchSession() {
+  localStorage.setItem(LAST_ACTIVE_KEY, String(Date.now()));
+}
+
+function isSessionIdle(): boolean {
+  const lastActive = Number(localStorage.getItem(LAST_ACTIVE_KEY));
+  return !lastActive || Date.now() - lastActive > IDLE_TIMEOUT_MS;
+}
+
+function expireIdleSession(): boolean {
+  const token = localStorage.getItem("cc_auth_token") || sessionStorage.getItem("cc_auth_token");
+  if (!token || !isSessionIdle()) return false;
+  setStoredToken(null);
+  setStoredAccount(null);
+  const url = API_BASE ? `${API_BASE}/api/auth/logout` : "/api/auth/logout";
+  void fetch(url, { method: "POST", credentials: "include" }).catch(() => {});
+  return true;
+}
+
 export function getStoredToken(): string | null {
+  expireIdleSession();
   return localStorage.getItem("cc_auth_token") || sessionStorage.getItem("cc_auth_token");
 }
 
@@ -73,15 +96,19 @@ export function setStoredToken(token: string | null, remember: boolean = true) {
   localStorage.removeItem("cc_auth_token");
   sessionStorage.removeItem("cc_auth_token");
   if (token) {
+    touchSession();
     if (remember) {
       localStorage.setItem("cc_auth_token", token);
     } else {
       sessionStorage.setItem("cc_auth_token", token);
     }
+  } else {
+    localStorage.removeItem(LAST_ACTIVE_KEY);
   }
 }
 
 export function getStoredAccount(): UserAccount | null {
+  expireIdleSession();
   try {
     const raw = localStorage.getItem("campus-connect-account") || sessionStorage.getItem("campus-connect-account");
     return raw ? JSON.parse(raw) : null;
