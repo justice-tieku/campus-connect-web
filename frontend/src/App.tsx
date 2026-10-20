@@ -171,7 +171,8 @@ function GoogleButton({
 
   const fallbackAuth = async () => {
     try {
-      const res = await api.getGoogleAuthUrl();
+      const origin = typeof window !== "undefined" ? window.location.origin : "";
+      const res = await api.getGoogleAuthUrl(origin);
       if (res?.url) {
         window.location.href = res.url;
       } else {
@@ -2730,7 +2731,15 @@ export default function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [internships, setInternships] = useState<Internship[]>([]);
   const [notices, setNotices] = useState<Notice[]>([]);
-  const [authenticated, setAuthenticated] = useState<boolean>(() => Boolean(getStoredToken()));
+  const [authenticated, setAuthenticated] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      const hash = window.location.hash;
+      const search = window.location.search;
+      const token = new URLSearchParams(hash.split("?")[1] ?? search).get("token");
+      if (token) return true;
+    }
+    return Boolean(getStoredToken());
+  });
   const [inactivityNotice, setInactivityNotice] = useState<string | null>(null);
 
   const [dark, setDark] = useState<boolean>(() => {
@@ -2822,8 +2831,25 @@ export default function App() {
       const token = new URLSearchParams(hash.split("?")[1] ?? search).get("token");
       if (token) {
         setStoredToken(token, true);
-        const cleanUrl = window.location.origin + window.location.pathname + (hash.split("?")[0] === "" ? "" : hash.split("?")[0]);
+        const cleanUrl =
+          window.location.origin +
+          window.location.pathname +
+          (hash.split("?")[0] === "" ? "" : hash.split("?")[0]);
         window.history.replaceState({}, document.title, cleanUrl);
+
+        void (async () => {
+          try {
+            const { user } = await api.me();
+            if (user) {
+              setAccount(user);
+              setStoredAccount(user, true);
+              setAuthenticated(true);
+              navigate(user.onboardingComplete ? "dashboard" : "onboarding");
+            }
+          } catch (e) {
+            console.error("Failed to load user session after Google OAuth:", e);
+          }
+        })();
       }
     } catch (_) {}
   }, []);

@@ -229,7 +229,10 @@ export const api = {
     return { user: formatted, token: res.token };
   },
 
-  getGoogleAuthUrl: () => request<{ url: string }>("/api/auth/google/url"),
+  getGoogleAuthUrl: (origin?: string) => {
+    const query = origin ? `?origin=${encodeURIComponent(origin)}` : "";
+    return request<{ url: string }>(`/api/auth/google/url${query}`);
+  },
 
   logout: async () => {
     try {
