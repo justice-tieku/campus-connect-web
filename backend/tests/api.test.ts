@@ -126,4 +126,43 @@ describe("CampusConnect API", () => {
     });
     expect(res.status).toBe(401);
   });
+
+  describe("Google OAuth Flow & Mobile Compatibility", () => {
+    it("generates a Google OAuth authorization URL with signed state", async () => {
+      const res = await request(app)
+        .get("/api/auth/google/url")
+        .query({ origin: "https://campusconnect.vercel.app" });
+      expect(res.status).toBe(200);
+      expect(res.body.url).toBeTruthy();
+      const parsedUrl = new URL(res.body.url);
+      expect(parsedUrl.hostname).toBe("accounts.google.com");
+      expect(parsedUrl.searchParams.get("response_type")).toBe("code");
+      expect(parsedUrl.searchParams.get("scope")).toContain("openid");
+      expect(parsedUrl.searchParams.get("state")).toBeTruthy();
+    });
+
+    it("handles callback at /api/auth/google/callback and /auth/google/callback without 404", async () => {
+      const resApi = await request(app)
+        .get("/api/auth/google/callback")
+        .expect(302);
+      expect(resApi.headers.location).toContain("login?error=google_auth_failed");
+
+      const resRoot = await request(app)
+        .get("/auth/google/callback")
+        .expect(302);
+      expect(resRoot.headers.location).toContain("login?error=google_auth_failed");
+
+      const resAlias = await request(app)
+        .get("/api/auth/callback/google")
+        .expect(302);
+      expect(resAlias.headers.location).toContain("login?error=google_auth_failed");
+    });
+
+    it("redirects direct hits to frontend paths on backend instead of 404", async () => {
+      const res = await request(app)
+        .get("/dashboard?token=test_token_123")
+        .expect(302);
+      expect(res.headers.location).toContain("/#dashboard?token=test_token_123");
+    });
+  });
 });

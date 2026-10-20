@@ -5,7 +5,15 @@ import bcrypt from "bcryptjs";
 import { OAuth2Client } from "google-auth-library";
 import { prisma } from "../lib/prisma";
 import { supabase, supabaseAdmin } from "../lib/supabase";
-import { clearAuthCookie, setAuthCookie, signToken } from "../lib/auth";
+import {
+  clearAuthCookie,
+  createOAuthState,
+  resolveClientOrigin,
+  resolveGoogleCallbackUrl,
+  setAuthCookie,
+  signToken,
+  verifyOAuthState,
+} from "../lib/auth";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { requireAuth } from "../middleware/auth";
 import { HttpError } from "../lib/httpError";
@@ -15,12 +23,14 @@ const router = Router();
 
 const googleClientId = process.env.GOOGLE_CLIENT_ID;
 const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
-const googleCallbackUrl =
-  process.env.GOOGLE_CALLBACK_URL || "http://localhost:4000/api/auth/google/callback";
 
-function getGoogleOAuthClient() {
+function getGoogleOAuthClient(callbackUrl?: string) {
   if (!googleClientId) return null;
-  return new OAuth2Client(googleClientId, googleClientSecret, googleCallbackUrl);
+  const cb =
+    callbackUrl ||
+    process.env.GOOGLE_CALLBACK_URL ||
+    "http://localhost:4000/api/auth/google/callback";
+  return new OAuth2Client(googleClientId, googleClientSecret, cb);
 }
 
 const registerSchema = z.object({
@@ -407,81 +417,141 @@ router.post(
   }),
 );
 
-router.get("/google/url", (_req, res) => {
-  const client = getGoogleOAuthClient();
+router.get("/google/url", (req, res) => {
+  const preferredOrigin = typeof req.query.origin === "string" ? req.query.origin : undefined;
+  const clientOrigin = resolveClientOrigin(req, preferredOrigin);
+  const callbackUrl = resolveGoogleCallbackUrl(req);
+  const client = getGoogleOAuthClient(callbackUrl);
+
   if (!client) {
+    console.error("[OAuth:Google] Cannot generate auth URL: GOOGLE_CLIENT_ID not configured.");
     return res.status(503).json({
       error: "Google authentication is not yet configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.",
     });
   }
+
+  const state = createOAuthState({
+    origin: clientOrigin,
+    callbackUrl,
+    returnUrl: typeof req.query.returnUrl === "string" ? req.query.returnUrl : undefined,
+  });
+
   const url = client.generateAuthUrl({
     access_type: "offline",
     scope: ["openid", "email", "profile"],
     prompt: "select_account",
+    state,
+    redirect_uri: callbackUrl,
   });
+
+  console.log(`[OAuth:Google] Generated auth URL: callback=${callbackUrl}, targetOrigin=${clientOrigin}`);
   res.json({ url });
 });
 
-router.get(
-  "/google/callback",
-  asyncHandler(async (req, res) => {
-    const code = typeof req.query.code === "string" ? req.query.code : null;
-    const clientOrigin = process.env.CLIENT_ORIGIN || "http://localhost:5173";
-    if (!code) {
-      return res.redirect(`${clientOrigin}/login?error=google_auth_failed`);
-    }
-    const client = getGoogleOAuthClient();
-    if (!client) {
-      return res.redirect(`${clientOrigin}/login?error=google_not_configured`);
+const handleGoogleCallback = asyncHandler(async (req, res) => {
+  const code = typeof req.query.code === "string" ? req.query.code : null;
+  const stateStr = typeof req.query.state === "string" ? req.query.state : undefined;
+  const stateData = verifyOAuthState(stateStr);
+
+  const clientOrigin = resolveClientOrigin(req, stateData?.origin);
+  const callbackUrl = stateData?.callbackUrl || resolveGoogleCallbackUrl(req);
+  const client = getGoogleOAuthClient(callbackUrl);
+
+  console.log(
+    `[OAuth:Google] Callback reached at path: ${req.originalUrl.split("?")[0]}, codePresent: ${Boolean(code)}, stateValid: ${Boolean(stateData)}`,
+  );
+
+  if (!code) {
+    const errorParam = typeof req.query.error === "string" ? req.query.error : "google_auth_failed";
+    console.warn(`[OAuth:Google] No authorization code in query. Query error: ${errorParam}`);
+    return res.redirect(`${clientOrigin}/#login?error=${encodeURIComponent(errorParam)}`);
+  }
+
+  if (!client) {
+    console.error("[OAuth:Google] OAuth client unconfigured during callback handling");
+    return res.redirect(`${clientOrigin}/#login?error=google_not_configured`);
+  }
+
+  try {
+    console.log(`[OAuth:Google] Exchanging authorization code for tokens (redirect_uri: ${callbackUrl})`);
+    const { tokens } = await client.getToken({
+      code,
+      redirect_uri: callbackUrl,
+    });
+
+    if (!tokens.id_token) {
+      console.error("[OAuth:Google] Token exchange succeeded but returned no id_token");
+      return res.redirect(`${clientOrigin}/#login?error=missing_id_token`);
     }
 
-    try {
-      const { tokens } = await client.getToken(code);
-      if (!tokens.id_token) {
-        return res.redirect(`${clientOrigin}/login?error=missing_id_token`);
-      }
-      const ticket = await client.verifyIdToken({
-        idToken: tokens.id_token,
-        audience: process.env.GOOGLE_CLIENT_ID,
+    const ticket = await client.verifyIdToken({
+      idToken: tokens.id_token,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    const payload = ticket.getPayload();
+    if (!payload?.email) {
+      console.error("[OAuth:Google] ID token verification succeeded but returned no email claim");
+      return res.redirect(`${clientOrigin}/#login?error=invalid_payload`);
+    }
+
+    const email = payload.email.toLowerCase();
+    const googleId = payload.sub;
+
+    let user = await prisma.user.findFirst({
+      where: { OR: [{ googleId }, { email }] },
+      include: { profile: true },
+    });
+
+    if (!user) {
+      const fName = payload.given_name || payload.name?.split(" ")[0] || "";
+      const lName = payload.family_name || payload.name?.split(" ").slice(1).join(" ") || "";
+      user = await prisma.user.create({
+        data: {
+          email,
+          googleId,
+          role: "STUDENT",
+          firstName: fName,
+          lastName: lName,
+          profile: { create: { imageUrl: payload.picture || null } },
+        },
+        include: { profile: true },
       });
-      const payload = ticket.getPayload();
-      if (!payload?.email) {
-        return res.redirect(`${clientOrigin}/login?error=invalid_payload`);
-      }
-
-      const email = payload.email.toLowerCase();
-      const googleId = payload.sub;
-
-      let user = await prisma.user.findFirst({
-        where: { OR: [{ googleId }, { email }] },
+      const maskedEmail = email.replace(/(.{2})(.*)(@.*)/, "$1***$3");
+      console.log(`[OAuth:Google] Created new student account: userId=${user.id}, email=${maskedEmail}`);
+    } else if (!user.googleId) {
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: { googleId },
+        include: { profile: true },
       });
-
-      if (!user) {
-        user = await prisma.user.create({
-          data: {
-            email,
-            googleId,
-            role: "STUDENT",
-            firstName: payload.given_name || payload.name?.split(" ")[0] || "",
-            lastName: payload.family_name || payload.name?.split(" ").slice(1).join(" ") || "",
-            profile: { create: { imageUrl: payload.picture || null } },
-          },
-        });
-      } else if (!user.googleId) {
-        user = await prisma.user.update({
-          where: { id: user.id },
-          data: { googleId },
-        });
-      }
-
-      const token = signToken({ userId: user.id, role: user.role });
-      setAuthCookie(res, { userId: user.id, role: user.role });
-      res.redirect(`${clientOrigin}/dashboard?token=${encodeURIComponent(token)}`);
-    } catch (err) {
-      res.redirect(`${clientOrigin}/login?error=callback_failed`);
+      console.log(`[OAuth:Google] Linked Google ID to existing account: userId=${user.id}`);
+    } else {
+      console.log(`[OAuth:Google] Existing user authenticated: userId=${user.id}`);
     }
-  }),
-);
+
+    if (!user.isActive) {
+      console.warn(`[OAuth:Google] User account is deactivated: userId=${user.id}`);
+      return res.redirect(`${clientOrigin}/#login?error=account_deactivated`);
+    }
+
+    const token = signToken({ userId: user.id, role: user.role });
+    setAuthCookie(res, { userId: user.id, role: user.role });
+
+    const redirectPath = user.profile?.onboardingComplete === false ? "onboarding" : "dashboard";
+    const targetUrl = `${clientOrigin}/#${redirectPath}?token=${encodeURIComponent(token)}`;
+
+    console.log(`[OAuth:Google] Authentication successful. Redirecting to frontend: ${clientOrigin}/#${redirectPath}`);
+    return res.redirect(targetUrl);
+  } catch (err: any) {
+    console.error("[OAuth:Google] Callback exchange error:", err?.message || err);
+    return res.redirect(`${clientOrigin}/#login?error=callback_failed`);
+  }
+});
+
+router.get("/google/callback", handleGoogleCallback);
+router.get("/callback/google", handleGoogleCallback);
+router.get("/google", handleGoogleCallback);
+router.get("/callback", handleGoogleCallback);
 
 router.post(
   "/sync-oauth",

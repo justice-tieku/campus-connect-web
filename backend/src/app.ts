@@ -12,6 +12,7 @@ import adminRoutes from "./routes/admin";
 import reportRoutes from "./routes/reports";
 import notificationRoutes from "./routes/notifications";
 import { errorHandler, notFound } from "./middleware/error";
+import { resolveClientOrigin } from "./lib/auth";
 
 export function createApp() {
   const app = express();
@@ -56,6 +57,9 @@ export function createApp() {
   });
 
   app.use("/api/auth", authRoutes);
+  // Support /auth alias so callbacks configured with or without /api both succeed
+  app.use("/auth", authRoutes);
+
   app.use("/api/profile", profileRoutes);
   app.use("/api/projects", projectRoutes);
   app.use("/api/join-requests", joinRequestRoutes);
@@ -63,6 +67,17 @@ export function createApp() {
   app.use("/api/admin", adminRoutes);
   app.use("/api/reports", reportRoutes);
   app.use("/api/notifications", notificationRoutes);
+
+  // Catch non-API frontend route visits on backend domain and seamlessly redirect to frontend
+  app.get(
+    ["/", "/dashboard", "/login", "/signup", "/verify", "/reset", "/forgot", "/onboarding", "/projects", "/internships", "/profile"],
+    (req, res) => {
+      const origin = resolveClientOrigin(req);
+      const query = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
+      const cleanPath = req.path === "/" ? "" : req.path.replace(/^\//, "");
+      return res.redirect(`${origin}/#${cleanPath}${query}`);
+    },
+  );
 
   app.use(notFound);
   app.use(errorHandler);

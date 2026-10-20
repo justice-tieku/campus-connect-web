@@ -1461,6 +1461,478 @@ function Onboarding({
   );
 }
 
+const ALL_MENTORS = [
+  {
+    name: "Dr. Elena Vasquez",
+    role: "AI Researcher · University Staff",
+    skills: ["Machine Learning", "Python", "Data Science", "Research"],
+    initials: "EV",
+  },
+  {
+    name: "Marcus Adeyemi",
+    role: "Product Engineer · Alumni",
+    skills: ["React", "TypeScript", "Node.js", "Career advice"],
+    initials: "MA",
+  },
+  {
+    name: "Priya Nair",
+    role: "UX Lead · Industry Mentor",
+    skills: ["Figma", "Product design", "Design Systems", "UI/UX"],
+    initials: "PN",
+  },
+  {
+    name: "Kwame Mensah",
+    role: "Cloud Architect · Google Developer Expert",
+    skills: ["Go", "Kubernetes", "DevOps", "Cloud"],
+    initials: "KM",
+  },
+  {
+    name: "Sarah Jenkins",
+    role: "Mobile Developer · Staff Alumni",
+    skills: ["Flutter", "React Native", "iOS", "Android"],
+    initials: "SJ",
+  },
+];
+
+const ALL_COURSES = [
+  {
+    id: "react-foundations",
+    title: "React Foundations",
+    provider: "Campus Connect Learning",
+    level: "Beginner",
+    skills: ["React", "TypeScript", "Frontend"],
+  },
+  {
+    id: "product-design",
+    title: "Designing Products People Use",
+    provider: "Open Design School",
+    level: "Intermediate",
+    skills: ["Figma", "Product design", "UX"],
+  },
+  {
+    id: "python-data",
+    title: "Applied Python for Data",
+    provider: "Future Skills Lab",
+    level: "Beginner",
+    skills: ["Python", "Data", "Analytics"],
+  },
+  {
+    id: "fullstack-node",
+    title: "Fullstack Web APIs with Node & Express",
+    provider: "Campus Dev Academy",
+    level: "Intermediate",
+    skills: ["Node.js", "Express", "REST APIs", "Prisma"],
+  },
+  {
+    id: "ml-for-builders",
+    title: "Machine Learning for Student Builders",
+    provider: "AI Student Hub",
+    level: "Advanced",
+    skills: ["Machine Learning", "Python", "PyTorch"],
+  },
+];
+
+/* 5 Clean Bottom Navigation SVG Icons */
+function HomeNavIcon({ active }: { active?: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" fill={active ? "currentColor" : "none"} stroke="currentColor" strokeWidth={active ? "2" : "1.8"}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 10.5L12 3l9 7.5V20a1.5 1.5 0 0 1-1.5 1.5H15v-6a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v6H4.5A1.5 1.5 0 0 1 3 20v-9.5z" />
+    </svg>
+  );
+}
+
+function ProjectsNavIcon({ active }: { active?: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" fill={active ? "currentColor" : "none"} stroke="currentColor" strokeWidth={active ? "2" : "1.8"}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" strokeLinecap="round" strokeLinejoin="round" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  );
+}
+
+function CreateNavIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
+
+function JobsNavIcon({ active }: { active?: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" fill={active ? "currentColor" : "none"} stroke="currentColor" strokeWidth={active ? "2" : "1.8"}>
+      <rect x="2" y="7" width="20" height="14" rx="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2M2 12h20" />
+    </svg>
+  );
+}
+
+function BellNavIcon({ active }: { active?: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" fill={active ? "currentColor" : "none"} stroke="currentColor" strokeWidth={active ? "2" : "1.8"}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0" />
+    </svg>
+  );
+}
+
+type SearchCategory = "All" | "Projects" | "Mentors" | "Courses" | "Internships";
+
+function OmniSearchModal({
+  isOpen,
+  onClose,
+  projects,
+  internships,
+  navigate,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  projects: Project[];
+  internships: Internship[];
+  navigate: (view: View) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState<SearchCategory>("All");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setTimeout(() => inputRef.current?.focus(), 60);
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  const q = query.trim().toLowerCase();
+
+  const matchedProjects = useMemo(() => {
+    if (!q) return projects.slice(0, 4);
+    return projects.filter(
+      (p) =>
+        p.title.toLowerCase().includes(q) ||
+        p.description.toLowerCase().includes(q) ||
+        p.category.toLowerCase().includes(q) ||
+        p.techStack?.some((t) => t.toLowerCase().includes(q)) ||
+        p.roles?.some((r) => r.toLowerCase().includes(q)),
+    );
+  }, [projects, q]);
+
+  const matchedMentors = useMemo(() => {
+    if (!q) return ALL_MENTORS.slice(0, 3);
+    return ALL_MENTORS.filter(
+      (m) =>
+        m.name.toLowerCase().includes(q) ||
+        m.role.toLowerCase().includes(q) ||
+        m.skills?.some((s) => s.toLowerCase().includes(q)),
+    );
+  }, [q]);
+
+  const matchedCourses = useMemo(() => {
+    if (!q) return ALL_COURSES.slice(0, 3);
+    return ALL_COURSES.filter(
+      (c) =>
+        c.title.toLowerCase().includes(q) ||
+        c.provider.toLowerCase().includes(q) ||
+        c.level.toLowerCase().includes(q) ||
+        c.skills?.some((s) => s.toLowerCase().includes(q)),
+    );
+  }, [q]);
+
+  const matchedInternships = useMemo(() => {
+    if (!q) return internships.slice(0, 3);
+    return internships.filter(
+      (i) =>
+        i.title.toLowerCase().includes(q) ||
+        i.company.toLowerCase().includes(q) ||
+        i.location.toLowerCase().includes(q) ||
+        i.skills?.some((s) => s.toLowerCase().includes(q)),
+    );
+  }, [internships, q]);
+
+  const totalResults =
+    matchedProjects.length +
+    matchedMentors.length +
+    matchedCourses.length +
+    matchedInternships.length;
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="omni-search-backdrop" onClick={onClose}>
+      <div className="omni-search-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="omni-search-header">
+          <span className="omni-search-header-icon">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M21 21l-4.35-4.35" strokeLinecap="round" />
+            </svg>
+          </span>
+          <input
+            ref={inputRef}
+            className="omni-search-header-input"
+            placeholder="Search mentors, courses, projects, internships..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          {query && (
+            <button
+              className="omni-search-close-btn"
+              onClick={() => setQuery("")}
+              type="button"
+              title="Clear search"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" />
+              </svg>
+            </button>
+          )}
+          <button
+            className="omni-search-close-btn"
+            onClick={onClose}
+            type="button"
+            title="Close"
+          >
+            <span style={{ fontSize: "11px", fontWeight: "700" }}>Esc</span>
+          </button>
+        </div>
+
+        <div className="omni-filter-tabs">
+          <button
+            className={`omni-tab-pill ${category === "All" ? "active" : ""}`}
+            onClick={() => setCategory("All")}
+            type="button"
+          >
+            ✨ All ({totalResults})
+          </button>
+          <button
+            className={`omni-tab-pill ${category === "Mentors" ? "active" : ""}`}
+            onClick={() => setCategory("Mentors")}
+            type="button"
+          >
+            🎓 Mentors ({matchedMentors.length})
+          </button>
+          <button
+            className={`omni-tab-pill ${category === "Courses" ? "active" : ""}`}
+            onClick={() => setCategory("Courses")}
+            type="button"
+          >
+            📚 Courses ({matchedCourses.length})
+          </button>
+          <button
+            className={`omni-tab-pill ${category === "Projects" ? "active" : ""}`}
+            onClick={() => setCategory("Projects")}
+            type="button"
+          >
+            👥 Projects ({matchedProjects.length})
+          </button>
+          <button
+            className={`omni-tab-pill ${category === "Internships" ? "active" : ""}`}
+            onClick={() => setCategory("Internships")}
+            type="button"
+          >
+            💼 Internships ({matchedInternships.length})
+          </button>
+        </div>
+
+        <div className="omni-search-body">
+          {totalResults === 0 && (
+            <div className="omni-empty-state">
+              <p>No results found matching "{query}".</p>
+              <small>Try searching for topics like "React", "Python", "Figma", or "AI".</small>
+            </div>
+          )}
+
+          {(category === "All" || category === "Mentors") &&
+            matchedMentors.map((mentor) => (
+              <button
+                key={`mentor-${mentor.name}`}
+                className="omni-result-card"
+                onClick={() => {
+                  onClose();
+                  navigate("mentors");
+                }}
+                type="button"
+              >
+                <div className="omni-result-main">
+                  <div className="omni-result-top">
+                    <span className="omni-type-pill mentor">Mentor</span>
+                    <strong className="omni-result-title">{mentor.name}</strong>
+                  </div>
+                  <span className="omni-result-detail">
+                    {mentor.role} · Skills: {mentor.skills.join(", ")}
+                  </span>
+                </div>
+                <ArrowIcon />
+              </button>
+            ))}
+
+          {(category === "All" || category === "Courses") &&
+            matchedCourses.map((course) => (
+              <button
+                key={`course-${course.id}`}
+                className="omni-result-card"
+                onClick={() => {
+                  onClose();
+                  navigate("courses");
+                }}
+                type="button"
+              >
+                <div className="omni-result-main">
+                  <div className="omni-result-top">
+                    <span className="omni-type-pill course">Course</span>
+                    <strong className="omni-result-title">{course.title}</strong>
+                  </div>
+                  <span className="omni-result-detail">
+                    {course.provider} · Level: {course.level} · {course.skills.join(", ")}
+                  </span>
+                </div>
+                <ArrowIcon />
+              </button>
+            ))}
+
+          {(category === "All" || category === "Projects") &&
+            matchedProjects.map((project) => (
+              <button
+                key={`project-${project.id}`}
+                className="omni-result-card"
+                onClick={() => {
+                  onClose();
+                  navigate("projects");
+                }}
+                type="button"
+              >
+                <div className="omni-result-main">
+                  <div className="omni-result-top">
+                    <span className="omni-type-pill project">Project</span>
+                    <strong className="omni-result-title">{project.title}</strong>
+                  </div>
+                  <span className="omni-result-detail">
+                    {project.category} · Tech: {project.techStack?.join(", ") || "General"}
+                  </span>
+                </div>
+                <ArrowIcon />
+              </button>
+            ))}
+
+          {(category === "All" || category === "Internships") &&
+            matchedInternships.map((internship) => (
+              <button
+                key={`internship-${internship.id}`}
+                className="omni-result-card"
+                onClick={() => {
+                  onClose();
+                  navigate("internships");
+                }}
+                type="button"
+              >
+                <div className="omni-result-main">
+                  <div className="omni-result-top">
+                    <span className="omni-type-pill internship">Internship</span>
+                    <strong className="omni-result-title">{internship.title}</strong>
+                  </div>
+                  <span className="omni-result-detail">
+                    {internship.company} · {internship.location} · {internship.skills?.join(", ")}
+                  </span>
+                </div>
+                <ArrowIcon />
+              </button>
+            ))}
+
+          {!q && (
+            <div className="omni-popular-section">
+              <div className="omni-popular-title">Popular Skills & Topics</div>
+              <div className="omni-popular-chips">
+                {POPULAR_SKILLS.map((sk) => (
+                  <button
+                    key={sk}
+                    className="omni-chip"
+                    onClick={() => setQuery(sk)}
+                    type="button"
+                  >
+                    {sk}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CreateSheetModal({
+  isOpen,
+  onClose,
+  canPostInternship,
+  onSelectProjectCreate,
+  onSelectInternshipCreate,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  canPostInternship: boolean;
+  onSelectProjectCreate: () => void;
+  onSelectInternshipCreate: () => void;
+}) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="create-sheet-backdrop" onClick={onClose}>
+      <div className="create-sheet-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="create-sheet-handle" />
+        <h2 className="create-sheet-title">Create or Share</h2>
+        <div className="create-sheet-options">
+          <button
+            className="create-option-card"
+            onClick={() => {
+              onClose();
+              onSelectProjectCreate();
+            }}
+            type="button"
+          >
+            <div className="create-option-icon project">👥</div>
+            <div className="create-option-text">
+              <h3>Start a Student Project</h3>
+              <p>Assemble teammates, recruit co-builders, and build together.</p>
+            </div>
+            <ArrowIcon />
+          </button>
+
+          <button
+            className="create-option-card"
+            onClick={() => {
+              onClose();
+              onSelectInternshipCreate();
+            }}
+            type="button"
+          >
+            <div className="create-option-icon internship">💼</div>
+            <div className="create-option-text">
+              <h3>Post an Internship or Job</h3>
+              <p>
+                {canPostInternship
+                  ? "Share an emerging talent opportunity with student builders."
+                  : "Explore opportunities matching your builder skills."}
+              </p>
+            </div>
+            <ArrowIcon />
+          </button>
+        </div>
+
+        <button className="create-sheet-cancel" onClick={onClose} type="button">
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function AppShell({
   account,
   view,
@@ -1500,6 +1972,11 @@ function AppShell({
   dark?: boolean;
   onToggleTheme?: () => void;
 }) {
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [createSheetOpen, setCreateSheetOpen] = useState(false);
+  const [autoOpenProjectCreate, setAutoOpenProjectCreate] = useState(false);
+  const [autoOpenInternshipCreate, setAutoOpenInternshipCreate] = useState(false);
+
   const firstName = account.name.split(" ")[0] || account.email.split("@")[0];
   const initials = account.name
     .split(" ")
@@ -1508,7 +1985,7 @@ function AppShell({
     .slice(0, 2)
     .join("") || "CC";
 
-  const nav: { label: string; view: View }[] = [
+  const desktopNav: { label: string; view: View }[] = [
     { label: "Dashboard", view: "dashboard" },
     { label: "Projects", view: "projects" },
     { label: "Internships", view: "internships" },
@@ -1523,10 +2000,11 @@ function AppShell({
 
   return (
     <div className="app-shell">
+      {/* Desktop Sidebar (hidden on mobile) */}
       <aside className="app-sidebar">
         <Logo onClick={() => navigate("dashboard")} />
         <nav>
-          {nav.map((item, index) => (
+          {desktopNav.map((item, index) => (
             <button
               className={view === item.view ? "active" : ""}
               key={`${item.label}-${index}`}
@@ -1551,36 +2029,74 @@ function AppShell({
           Log out
         </button>
       </aside>
+
       <div className="app-content">
+        {/* Top Header Bar */}
         <header className="app-topbar">
-          <div className="topbar-status">
-            <span className="status-dot" />
-            Campus community online
-          </div>
-          <div className="topbar-actions">
-            <ThemeToggle dark={dark} onToggle={onToggleTheme} />
-            <button className="topbar-user" onClick={() => navigate("profile")} type="button">
-              <span
-                style={
-                  account.imageUrl
-                    ? {
-                        backgroundImage: `url(${resolveImageUrl(account.imageUrl)})`,
-                        backgroundSize: "cover",
-                        backgroundPosition: "center",
-                        backgroundColor: "transparent",
-                      }
-                    : {}
-                }
-              >
-                {!account.imageUrl && initials}
+          {/* Top-Left: User Profile Avatar */}
+          <button
+            className="topbar-avatar-btn"
+            onClick={() => navigate("profile")}
+            title={`${account.name} (View Profile)`}
+            type="button"
+            aria-label="View Profile"
+          >
+            <div className="topbar-avatar-wrap">
+              {account.imageUrl ? (
+                <img src={resolveImageUrl(account.imageUrl)} alt={account.name} />
+              ) : (
+                <span>{initials}</span>
+              )}
+              <span className="topbar-online-dot" title="Campus community online" />
+            </div>
+          </button>
+
+          {/* Center: Search Bar */}
+          <div className="topbar-search-container">
+            <div
+              className="topbar-search-input-wrap"
+              onClick={() => setSearchOpen(true)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") setSearchOpen(true);
+              }}
+            >
+              <span className="topbar-search-icon">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                  <circle cx="11" cy="11" r="7" />
+                  <path d="M21 21l-4.35-4.35" strokeLinecap="round" />
+                </svg>
               </span>
-              <div>
-                <strong>{account.name}</strong>
-                <small>{account.accountType}</small>
-              </div>
+              <input
+                className="topbar-search-input"
+                placeholder="Search mentors, courses, projects..."
+                readOnly
+                value=""
+              />
+            </div>
+          </div>
+
+          {/* Top-Right: Theme Toggle & Notifications */}
+          <div className="topbar-actions-group">
+            <ThemeToggle dark={dark} onToggle={onToggleTheme} />
+            <button
+              className="topbar-icon-btn"
+              onClick={() => navigate("notifications")}
+              title="Notifications"
+              type="button"
+              aria-label="Notifications"
+            >
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              {unreadNoticesCount > 0 && (
+                <span className="topbar-badge">{unreadNoticesCount > 99 ? "99+" : unreadNoticesCount}</span>
+              )}
             </button>
           </div>
         </header>
+
         <main>
           {account.onboardingSkipped && !account.onboardingComplete && (
             <div className="profile-reminder">
@@ -1600,12 +2116,14 @@ function AppShell({
               onDecision={onRequestDecision}
               onJoin={onJoinProject}
               projects={projects}
+              autoOpenCreate={autoOpenProjectCreate}
             />
           ) : view === "internships" ? (
             <InternshipsPage
               canPost={account.accountType !== "Student"}
               internships={internships}
               onCreate={onCreateInternship}
+              autoOpenCreate={autoOpenInternshipCreate}
             />
           ) : view === "mentors" ? (
             <MentorsPage />
@@ -1640,6 +2158,22 @@ function AppShell({
                   </button>
                 </article>
                 <article>
+                  <span>MENTORS & EXPERTS</span>
+                  <strong>{ALL_MENTORS.length}</strong>
+                  <p>Guidance from industry & research mentors.</p>
+                  <button onClick={() => navigate("mentors")} type="button">
+                    Find a mentor <ArrowIcon />
+                  </button>
+                </article>
+                <article>
+                  <span>SKILL COURSES</span>
+                  <strong>{ALL_COURSES.length}</strong>
+                  <p>Practical learning tracks for builders.</p>
+                  <button onClick={() => navigate("courses")} type="button">
+                    Explore courses <ArrowIcon />
+                  </button>
+                </article>
+                <article>
                   <span>NOTIFICATIONS</span>
                   <strong>{unreadNoticesCount}</strong>
                   <p>
@@ -1670,6 +2204,88 @@ function AppShell({
           )}
         </main>
       </div>
+
+      {/* Exactly 5 Navigation Items at the bottom */}
+      <nav className="mobile-bottom-bar" aria-label="Bottom Navigation">
+        <button
+          className={`bottom-nav-item ${view === "dashboard" ? "active" : ""}`}
+          onClick={() => navigate("dashboard")}
+          type="button"
+        >
+          <HomeNavIcon active={view === "dashboard"} />
+          <span className="bottom-nav-label">Home</span>
+        </button>
+
+        <button
+          className={`bottom-nav-item ${view === "projects" ? "active" : ""}`}
+          onClick={() => navigate("projects")}
+          type="button"
+        >
+          <ProjectsNavIcon active={view === "projects"} />
+          <span className="bottom-nav-label">Projects</span>
+        </button>
+
+        <button
+          className="bottom-nav-item create-item"
+          onClick={() => setCreateSheetOpen(true)}
+          type="button"
+          aria-label="Create or Post"
+        >
+          <div className="create-plus-pill">
+            <CreateNavIcon />
+          </div>
+          <span className="bottom-nav-label">Post</span>
+        </button>
+
+        <button
+          className={`bottom-nav-item ${view === "internships" ? "active" : ""}`}
+          onClick={() => navigate("internships")}
+          type="button"
+        >
+          <JobsNavIcon active={view === "internships"} />
+          <span className="bottom-nav-label">Jobs</span>
+        </button>
+
+        <button
+          className={`bottom-nav-item ${view === "notifications" ? "active" : ""}`}
+          onClick={() => navigate("notifications")}
+          type="button"
+        >
+          <div className="bottom-nav-icon-wrap">
+            <BellNavIcon active={view === "notifications"} />
+            {unreadNoticesCount > 0 && (
+              <span className="bottom-nav-badge">
+                {unreadNoticesCount > 99 ? "99+" : unreadNoticesCount}
+              </span>
+            )}
+          </div>
+          <span className="bottom-nav-label">Alerts</span>
+        </button>
+      </nav>
+
+      {/* OmniSearch Modal */}
+      <OmniSearchModal
+        isOpen={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        projects={projects}
+        internships={internships}
+        navigate={navigate}
+      />
+
+      {/* Create (+) Action Sheet Modal */}
+      <CreateSheetModal
+        isOpen={createSheetOpen}
+        onClose={() => setCreateSheetOpen(false)}
+        canPostInternship={account.accountType !== "Student"}
+        onSelectProjectCreate={() => {
+          setAutoOpenProjectCreate(true);
+          navigate("projects");
+        }}
+        onSelectInternshipCreate={() => {
+          setAutoOpenInternshipCreate(true);
+          navigate("internships");
+        }}
+      />
     </div>
   );
 }
@@ -1680,6 +2296,7 @@ function ProjectsHub({
   onCreate,
   onJoin,
   onDecision,
+  autoOpenCreate,
 }: {
   account: UserAccount;
   projects: Project[];
@@ -1690,12 +2307,13 @@ function ProjectsHub({
     requestId: string,
     decision: "accepted" | "declined",
   ) => Promise<void>;
+  autoOpenCreate?: boolean;
 }) {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("All");
   const [category, setCategory] = useState("All");
   const [skill, setSkill] = useState("All");
-  const [showCreate, setShowCreate] = useState(false);
+  const [showCreate, setShowCreate] = useState(Boolean(autoOpenCreate));
   const [joinProject, setJoinProject] = useState<Project | null>(null);
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -2086,12 +2704,14 @@ function InternshipsPage({
   canPost,
   internships,
   onCreate,
+  autoOpenCreate,
 }: {
   canPost: boolean;
   internships: Internship[];
   onCreate: (data: any) => Promise<void>;
+  autoOpenCreate?: boolean;
 }) {
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState(Boolean(autoOpenCreate));
   const [submitting, setSubmitting] = useState(false);
   const [draft, setDraft] = useState({
     title: "",
@@ -2224,26 +2844,7 @@ function InternshipsPage({
 }
 
 function MentorsPage() {
-  const mentors = [
-    {
-      name: "Dr. Elena Vasquez",
-      role: "AI Researcher · University Staff",
-      skills: ["Machine Learning", "Python"],
-      initials: "EV",
-    },
-    {
-      name: "Marcus Adeyemi",
-      role: "Product Engineer · Alumni",
-      skills: ["React", "Career advice"],
-      initials: "MA",
-    },
-    {
-      name: "Priya Nair",
-      role: "UX Lead · Industry Mentor",
-      skills: ["Figma", "Product design"],
-      initials: "PN",
-    },
-  ];
+  const mentors = ALL_MENTORS;
   const [contacted, setContacted] = useState<string[]>([]);
 
   return (
@@ -2290,29 +2891,7 @@ function MentorsPage() {
 }
 
 function CoursesPage() {
-  const courses = [
-    {
-      id: "react-foundations",
-      title: "React Foundations",
-      provider: "Campus Connect Learning",
-      level: "Beginner",
-      skills: ["React", "TypeScript"],
-    },
-    {
-      id: "product-design",
-      title: "Designing Products People Use",
-      provider: "Open Design School",
-      level: "Intermediate",
-      skills: ["Figma", "Product design"],
-    },
-    {
-      id: "python-data",
-      title: "Applied Python for Data",
-      provider: "Future Skills Lab",
-      level: "Beginner",
-      skills: ["Python", "Data"],
-    },
-  ];
+  const courses = ALL_COURSES;
 
   const [enrolled, setEnrolled] = useState<string[]>(() => {
     try {
