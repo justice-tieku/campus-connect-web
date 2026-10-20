@@ -65,6 +65,17 @@ export type Notice = {
 
 const API_BASE = (import.meta.env.VITE_API_ORIGIN || "").replace(/\/+$/, "");
 
+export function resolveImageUrl(url?: string): string {
+  if (!url) return "";
+  if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:")) {
+    return url;
+  }
+  if (url.startsWith("/")) {
+    return `${API_BASE}${url}`;
+  }
+  return `${API_BASE}/${url}`;
+}
+
 export function getStoredToken(): string | null {
   return localStorage.getItem("cc_auth_token") || sessionStorage.getItem("cc_auth_token");
 }
@@ -104,7 +115,7 @@ export function setStoredAccount(account: UserAccount | null, remember: boolean 
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
-  if (init.body && !headers.has("Content-Type")) {
+  if (init.body && !(init.body instanceof FormData) && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
   const token = getStoredToken();
@@ -258,6 +269,34 @@ export const api = {
       body: JSON.stringify(body),
     });
     return res;
+  },
+
+  uploadAvatar: async (file: File) => {
+    const formData = new FormData();
+    formData.append("avatar", file);
+    const token = getStoredToken();
+    const headers = new Headers();
+    if (token) {
+      headers.set("Authorization", `Bearer ${token}`);
+    }
+    const url = API_BASE ? `${API_BASE}/api/profile/avatar` : "/api/profile/avatar";
+    const res = await fetch(url, {
+      method: "POST",
+      headers,
+      body: formData,
+      credentials: "include",
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.error || "Failed to upload avatar image");
+    }
+    return data as { ok: boolean; imageUrl: string; profile: any };
+  },
+
+  deleteAvatar: async () => {
+    return request<{ ok: boolean; profile: any }>("/api/profile/avatar", {
+      method: "DELETE",
+    });
   },
 
   listProjects: async (params: { q?: string; skill?: string; category?: string; status?: string } = {}) => {

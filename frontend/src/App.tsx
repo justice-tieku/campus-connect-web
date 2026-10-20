@@ -1,8 +1,9 @@
-import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
+import { FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import {
   api,
   getStoredAccount,
   getStoredToken,
+  resolveImageUrl,
   setStoredAccount,
   setStoredToken,
   type AccountType,
@@ -214,24 +215,83 @@ function GoogleButton({
   );
 }
 
+function ThemeToggle({
+  dark,
+  onToggle,
+  className = "",
+}: {
+  dark?: boolean;
+  onToggle?: () => void;
+  className?: string;
+}) {
+  const [internalDark, setInternalDark] = useState<boolean>(() => {
+    if (typeof dark === "boolean") return dark;
+    const saved = localStorage.getItem("theme");
+    if (saved) return saved === "dark";
+    return typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  });
+
+  const isDark = typeof dark === "boolean" ? dark : internalDark;
+
+  const handleToggle = () => {
+    if (onToggle) {
+      onToggle();
+    } else {
+      const next = !internalDark;
+      setInternalDark(next);
+      document.documentElement.classList.toggle("dark", next);
+      document.documentElement.setAttribute("data-theme", next ? "dark" : "light");
+      localStorage.setItem("theme", next ? "dark" : "light");
+    }
+  };
+
+  return (
+    <button
+      aria-label={isDark ? "Switch to light theme" : "Switch to dark theme"}
+      className={`theme-toggle ${className}`}
+      onClick={handleToggle}
+      title={isDark ? "Switch to light theme" : "Switch to dark theme"}
+      type="button"
+    >
+      {isDark ? (
+        <Icon size={18}>
+          <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="1.8" />
+          <path
+            d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeWidth="1.8"
+          />
+        </Icon>
+      ) : (
+        <Icon size={18}>
+          <path
+            d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="1.8"
+          />
+        </Icon>
+      )}
+    </button>
+  );
+}
+
 function Header({
   navigate,
   simple = false,
+  dark,
+  onToggleTheme,
 }: {
   navigate: (view: View) => void;
   simple?: boolean;
+  dark?: boolean;
+  onToggleTheme?: () => void;
 }) {
-  const [dark, setDark] = useState(() => localStorage.getItem("theme") === "dark");
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", dark);
-    localStorage.setItem("theme", dark ? "dark" : "light");
-  }, [dark]);
   return (
     <header className={`site-header ${simple ? "simple" : ""}`}>
       <Logo onClick={() => navigate("home")} />
-      <button type="button" onClick={() => setDark((d) => !d)} style={{ marginLeft: "auto" }}>
-        {dark ? "Light" : "Dark"}
-      </button>
       {!simple && (
         <>
           <nav aria-label="Main navigation" className="desktop-nav">
@@ -255,6 +315,7 @@ function Header({
             </button>
           </nav>
           <div className="header-actions">
+            <ThemeToggle dark={dark} onToggle={onToggleTheme} />
             <button className="text-button" onClick={() => navigate("login")} type="button">
               Log in
             </button>
@@ -269,27 +330,38 @@ function Header({
         </>
       )}
       {simple && (
-        <button className="text-button back-home" onClick={() => navigate("home")} type="button">
-          <Icon size={17}>
-            <path
-              d="M19 12H5m6 6-6-6 6-6"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="1.8"
-            />
-          </Icon>
-          Back to home
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", marginLeft: "auto" }}>
+          <ThemeToggle dark={dark} onToggle={onToggleTheme} />
+          <button className="text-button back-home" onClick={() => navigate("home")} type="button">
+            <Icon size={17}>
+              <path
+                d="M19 12H5m6 6-6-6 6-6"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="1.8"
+              />
+            </Icon>
+            Back to home
+          </button>
+        </div>
       )}
     </header>
   );
 }
 
-function Landing({ navigate }: { navigate: (view: View) => void }) {
+function Landing({
+  navigate,
+  dark,
+  onToggleTheme,
+}: {
+  navigate: (view: View) => void;
+  dark?: boolean;
+  onToggleTheme?: () => void;
+}) {
   return (
     <div className="page-shell">
-      <Header navigate={navigate} />
+      <Header dark={dark} navigate={navigate} onToggleTheme={onToggleTheme} />
       <main>
         <section className="hero">
           <div className="hero-copy">
@@ -568,9 +640,13 @@ function AuthAside() {
 function Signup({
   navigate,
   onAccountCreated,
+  dark,
+  onToggleTheme,
 }: {
   navigate: (view: View) => void;
   onAccountCreated: (account: UserAccount) => void;
+  dark?: boolean;
+  onToggleTheme?: () => void;
 }) {
   const [form, setForm] = useState({
     name: "",
@@ -644,7 +720,7 @@ function Signup({
 
   return (
     <div className="auth-page">
-      <Header navigate={navigate} simple />
+      <Header dark={dark} navigate={navigate} onToggleTheme={onToggleTheme} simple />
       <div className="auth-layout">
         <AuthAside />
         <main className="auth-main">
@@ -803,10 +879,14 @@ function Verify({
   account,
   navigate,
   onVerified,
+  dark,
+  onToggleTheme,
 }: {
   account: UserAccount | null;
   navigate: (view: View) => void;
   onVerified: () => void;
+  dark?: boolean;
+  onToggleTheme?: () => void;
 }) {
   const [verifying, setVerifying] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
@@ -815,7 +895,7 @@ function Verify({
   if (!account) {
     return (
       <div className="auth-page">
-        <Header navigate={navigate} simple />
+        <Header dark={dark} navigate={navigate} onToggleTheme={onToggleTheme} simple />
         <main className="verify-main">
           <h1>Account Verification</h1>
           <p>Please log in or create an account first.</p>
@@ -844,7 +924,7 @@ function Verify({
 
   return (
     <div className="auth-page">
-      <Header navigate={navigate} simple />
+      <Header dark={dark} navigate={navigate} onToggleTheme={onToggleTheme} simple />
       <main className="verify-main">
         <div className="mail-illustration">
           <div className="mail-ring" />
@@ -909,9 +989,15 @@ function Verify({
 function Login({
   navigate,
   onLoginSuccess,
+  inactivityNotice,
+  dark,
+  onToggleTheme,
 }: {
   navigate: (view: View) => void;
   onLoginSuccess: (account: UserAccount, remember: boolean) => void;
+  inactivityNotice?: string | null;
+  dark?: boolean;
+  onToggleTheme?: () => void;
 }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -954,7 +1040,7 @@ function Login({
 
   return (
     <div className="auth-page">
-      <Header navigate={navigate} simple />
+      <Header dark={dark} navigate={navigate} onToggleTheme={onToggleTheme} simple />
       <div className="auth-layout login-layout">
         <AuthAside />
         <main className="auth-main">
@@ -962,6 +1048,25 @@ function Login({
             <span className="form-kicker">WELCOME BACK</span>
             <h1>Log in to keep building</h1>
             <p className="form-intro">Your next collaboration is waiting.</p>
+
+            {inactivityNotice && (
+              <div className="inactivity-alert">
+                <Icon size={20}>
+                  <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8" />
+                  <path
+                    d="M12 7v5l3 2"
+                    stroke="currentColor"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="1.8"
+                  />
+                </Icon>
+                <div>
+                  <strong>Session Expired</strong>
+                  <p>{inactivityNotice}</p>
+                </div>
+              </div>
+            )}
 
             {error && (
               <div className="form-alert">
@@ -1052,7 +1157,15 @@ function Login({
   );
 }
 
-function ForgotPassword({ navigate }: { navigate: (view: View) => void }) {
+function ForgotPassword({
+  navigate,
+  dark,
+  onToggleTheme,
+}: {
+  navigate: (view: View) => void;
+  dark?: boolean;
+  onToggleTheme?: () => void;
+}) {
   const [email, setEmail] = useState("");
   const [sentLink, setSentLink] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -1074,7 +1187,7 @@ function ForgotPassword({ navigate }: { navigate: (view: View) => void }) {
 
   return (
     <div className="auth-page">
-      <Header navigate={navigate} simple />
+      <Header dark={dark} navigate={navigate} onToggleTheme={onToggleTheme} simple />
       <main className="recovery-main">
         <span className="recovery-icon">
           <Icon size={30}>
@@ -1129,7 +1242,15 @@ function ForgotPassword({ navigate }: { navigate: (view: View) => void }) {
   );
 }
 
-function ResetPassword({ navigate }: { navigate: (view: View) => void }) {
+function ResetPassword({
+  navigate,
+  dark,
+  onToggleTheme,
+}: {
+  navigate: (view: View) => void;
+  dark?: boolean;
+  onToggleTheme?: () => void;
+}) {
   const params = new URLSearchParams(window.location.hash.split("?")[1] ?? window.location.search);
   const token = params.get("token") || undefined;
   const [password, setPassword] = useState("");
@@ -1157,7 +1278,7 @@ function ResetPassword({ navigate }: { navigate: (view: View) => void }) {
 
   return (
     <div className="auth-page">
-      <Header navigate={navigate} simple />
+      <Header dark={dark} navigate={navigate} onToggleTheme={onToggleTheme} simple />
       <main className="recovery-main">
         <span className="form-kicker">SECURE RESET</span>
         <h1>{done ? "Password updated" : "Choose a new password"}</h1>
@@ -1204,10 +1325,14 @@ function Onboarding({
   account,
   onSave,
   onSkip,
+  dark,
+  onToggleTheme,
 }: {
   account: UserAccount;
   onSave: (profile: Partial<UserAccount>) => Promise<void>;
   onSkip: () => Promise<void>;
+  dark?: boolean;
+  onToggleTheme?: () => void;
 }) {
   const [bio, setBio] = useState(account.bio || "");
   const [skills, setSkills] = useState<string[]>(account.techStack || []);
@@ -1243,7 +1368,10 @@ function Onboarding({
     <div className="onboarding-page">
       <header>
         <Logo onClick={() => undefined} />
-        <span>Step 1 of 1</span>
+        <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+          <ThemeToggle dark={dark} onToggle={onToggleTheme} />
+          <span>Step 1 of 1</span>
+        </div>
       </header>
       <main>
         <div className="onboarding-heading">
@@ -1338,6 +1466,7 @@ function AppShell({
   navigate,
   onLogout,
   onSaveProfile,
+  onAvatarUpdate,
   projects,
   notices,
   onCreateProject,
@@ -1346,12 +1475,15 @@ function AppShell({
   onReadNotices,
   internships,
   onCreateInternship,
+  dark,
+  onToggleTheme,
 }: {
   account: UserAccount;
   view: View;
   navigate: (view: View) => void;
   onLogout: () => void;
   onSaveProfile: (profile: Partial<UserAccount>) => Promise<void>;
+  onAvatarUpdate: (imageUrl: string) => void;
   projects: Project[];
   notices: Notice[];
   onCreateProject: (project: any) => Promise<void>;
@@ -1364,6 +1496,8 @@ function AppShell({
   onReadNotices: () => Promise<void>;
   internships: Internship[];
   onCreateInternship: (data: any) => Promise<void>;
+  dark?: boolean;
+  onToggleTheme?: () => void;
 }) {
   const firstName = account.name.split(" ")[0] || account.email.split("@")[0];
   const initials = account.name
@@ -1418,17 +1552,33 @@ function AppShell({
       </aside>
       <div className="app-content">
         <header className="app-topbar">
-          <div>
+          <div className="topbar-status">
             <span className="status-dot" />
             Campus community online
           </div>
-          <button onClick={() => navigate("profile")} type="button">
-            <span style={account.imageUrl ? { backgroundImage: `url(${account.imageUrl})`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundColor: 'transparent' } : {}}>{!account.imageUrl && initials}</span>
-            <div>
-              <strong>{account.name}</strong>
-              <small>{account.accountType}</small>
-            </div>
-          </button>
+          <div className="topbar-actions">
+            <ThemeToggle dark={dark} onToggle={onToggleTheme} />
+            <button className="topbar-user" onClick={() => navigate("profile")} type="button">
+              <span
+                style={
+                  account.imageUrl
+                    ? {
+                        backgroundImage: `url(${resolveImageUrl(account.imageUrl)})`,
+                        backgroundSize: "cover",
+                        backgroundPosition: "center",
+                        backgroundColor: "transparent",
+                      }
+                    : {}
+                }
+              >
+                {!account.imageUrl && initials}
+              </span>
+              <div>
+                <strong>{account.name}</strong>
+                <small>{account.accountType}</small>
+              </div>
+            </button>
+          </div>
         </header>
         <main>
           {account.onboardingSkipped && !account.onboardingComplete && (
@@ -1441,7 +1591,7 @@ function AppShell({
           )}
 
           {view === "profile" ? (
-            <Profile account={account} onSave={onSaveProfile} />
+            <Profile account={account} onAvatarUpdate={onAvatarUpdate} onSave={onSaveProfile} />
           ) : view === "projects" ? (
             <ProjectsHub
               account={account}
@@ -2299,17 +2449,65 @@ function PlaceholderPage({ view }: { view: View }) {
 function Profile({
   account,
   onSave,
+  onAvatarUpdate,
 }: {
   account: UserAccount;
   onSave: (profile: Partial<UserAccount>) => Promise<void>;
+  onAvatarUpdate: (imageUrl: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(account);
   const [busy, setBusy] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarFeedback, setAvatarFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setDraft(account);
   }, [account]);
+
+  const handleAvatarFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setAvatarFeedback({ type: "error", text: "Please select an image file (PNG, JPG, WEBP, GIF)." });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setAvatarFeedback({ type: "error", text: "Image size must be 5MB or less." });
+      return;
+    }
+
+    setUploadingAvatar(true);
+    setAvatarFeedback(null);
+    try {
+      const res = await api.uploadAvatar(file);
+      setDraft((prev) => ({ ...prev, imageUrl: res.imageUrl }));
+      onAvatarUpdate(res.imageUrl);
+      setAvatarFeedback({ type: "success", text: "Profile photo updated!" });
+    } catch (err: any) {
+      setAvatarFeedback({ type: "error", text: err.message || "Failed to upload image." });
+    } finally {
+      setUploadingAvatar(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleRemoveAvatar = async () => {
+    setUploadingAvatar(true);
+    setAvatarFeedback(null);
+    try {
+      await api.deleteAvatar();
+      setDraft((prev) => ({ ...prev, imageUrl: "" }));
+      onAvatarUpdate("");
+      setAvatarFeedback({ type: "success", text: "Profile photo removed." });
+    } catch (err: any) {
+      setAvatarFeedback({ type: "error", text: err.message || "Failed to remove photo." });
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
 
   const toggleSkill = (skill: string) =>
     setDraft((current) => ({
@@ -2352,8 +2550,79 @@ function Profile({
         )}
       </div>
       <form className="profile-card" onSubmit={save}>
-        <div className="profile-avatar" style={draft.imageUrl ? { backgroundImage: `url(${draft.imageUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}>
-          {!draft.imageUrl && initials}
+        <div className="profile-avatar-wrap">
+          <div
+            className={`profile-avatar clickable ${uploadingAvatar ? "loading" : ""}`}
+            onClick={() => fileInputRef.current?.click()}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                fileInputRef.current?.click();
+              }
+            }}
+            style={
+              draft.imageUrl
+                ? {
+                    backgroundImage: `url(${resolveImageUrl(draft.imageUrl)})`,
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                    backgroundColor: "transparent",
+                  }
+                : {}
+            }
+            title="Click to upload profile photo"
+          >
+            {uploadingAvatar ? (
+              <div className="avatar-spinner" />
+            ) : draft.imageUrl ? null : (
+              initials
+            )}
+            <div className="avatar-edit-badge" title="Upload new photo">
+              <Icon size={13}>
+                <path
+                  d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4L16.5 3.5Z"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="1.8"
+                />
+              </Icon>
+            </div>
+          </div>
+          <input
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            onChange={handleAvatarFile}
+            ref={fileInputRef}
+            style={{ display: "none" }}
+            type="file"
+          />
+          <div className="avatar-controls">
+            <button
+              className="avatar-action-btn"
+              disabled={uploadingAvatar}
+              onClick={() => fileInputRef.current?.click()}
+              type="button"
+            >
+              {draft.imageUrl ? "Change photo" : "Upload photo"}
+            </button>
+            {draft.imageUrl && (
+              <button
+                className="avatar-remove-btn"
+                disabled={uploadingAvatar}
+                onClick={handleRemoveAvatar}
+                type="button"
+              >
+                Remove
+              </button>
+            )}
+          </div>
+          {avatarFeedback && (
+            <div className={`avatar-feedback ${avatarFeedback.type}`}>
+              {avatarFeedback.text}
+            </div>
+          )}
         </div>
         <div className="profile-fields">
           <div className="field-row">
@@ -2462,6 +2731,88 @@ export default function App() {
   const [internships, setInternships] = useState<Internship[]>([]);
   const [notices, setNotices] = useState<Notice[]>([]);
   const [authenticated, setAuthenticated] = useState<boolean>(() => Boolean(getStoredToken()));
+  const [inactivityNotice, setInactivityNotice] = useState<string | null>(null);
+
+  const [dark, setDark] = useState<boolean>(() => {
+    const saved = localStorage.getItem("theme");
+    if (saved) return saved === "dark";
+    return typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  });
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", dark);
+    document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+    localStorage.setItem("theme", dark ? "dark" : "light");
+  }, [dark]);
+
+  const toggleTheme = () => setDark((prev) => !prev);
+
+  // Inactivity auto-logout (15 minutes of inactivity)
+  const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;
+
+  useEffect(() => {
+    if (!authenticated || !account) return;
+
+    if (!localStorage.getItem("cc_last_activity")) {
+      localStorage.setItem("cc_last_activity", Date.now().toString());
+    }
+
+    let lastSaved = 0;
+    const handleUserActivity = () => {
+      const now = Date.now();
+      if (now - lastSaved > 3000) {
+        lastSaved = now;
+        localStorage.setItem("cc_last_activity", now.toString());
+      }
+    };
+
+    const checkInactivity = () => {
+      const raw = localStorage.getItem("cc_last_activity");
+      const lastTime = raw ? Number(raw) : Date.now();
+      if (Date.now() - lastTime > INACTIVITY_TIMEOUT_MS) {
+        void handleAutoLogout();
+      }
+    };
+
+    const handleAutoLogout = async () => {
+      try {
+        await api.logout();
+      } catch (_) {}
+      setAuthenticated(false);
+      setAccount(null);
+      setStoredToken(null);
+      setStoredAccount(null);
+      localStorage.removeItem("cc_last_activity");
+      setInactivityNotice(
+        "You were automatically logged out due to 15 minutes of inactivity to protect your account. Please log in again to continue.",
+      );
+      navigate("login");
+    };
+
+    const events = ["mousedown", "mousemove", "keydown", "touchstart", "scroll", "click"];
+    for (const ev of events) {
+      window.addEventListener(ev, handleUserActivity, { passive: true });
+    }
+
+    const timerId = setInterval(checkInactivity, 10000);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        checkInactivity();
+      }
+    };
+    window.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("focus", handleVisibility);
+
+    return () => {
+      for (const ev of events) {
+        window.removeEventListener(ev, handleUserActivity);
+      }
+      clearInterval(timerId);
+      window.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("focus", handleVisibility);
+    };
+  }, [authenticated, account]);
 
   // Handle OAuth callback token from URL (hash or search params)
   useEffect(() => {
@@ -2549,6 +2900,8 @@ export default function App() {
   };
 
   const handleLoginSuccess = (next: UserAccount, remember: boolean) => {
+    setInactivityNotice(null);
+    localStorage.setItem("cc_last_activity", Date.now().toString());
     setAccount(next);
     setAuthenticated(true);
     setStoredAccount(next, remember);
@@ -2558,7 +2911,17 @@ export default function App() {
     await api.logout();
     setAuthenticated(false);
     setAccount(null);
+    localStorage.removeItem("cc_last_activity");
     navigate("login");
+  };
+
+  const handleAvatarUpdate = (imageUrl: string) => {
+    setAccount((current) => {
+      if (!current) return null;
+      const updated = { ...current, imageUrl };
+      setStoredAccount(updated);
+      return updated;
+    });
   };
 
   const handleSaveProfile = async (changes: Partial<UserAccount>) => {
@@ -2614,16 +2977,26 @@ export default function App() {
 
   // Route protection
   if (protectedViews.includes(view) && (!authenticated || !account)) {
-    return <Login navigate={navigate} onLoginSuccess={handleLoginSuccess} />;
+    return (
+      <Login
+        dark={dark}
+        inactivityNotice={inactivityNotice}
+        navigate={navigate}
+        onLoginSuccess={handleLoginSuccess}
+        onToggleTheme={toggleTheme}
+      />
+    );
   }
 
   if (authenticated && account && visitorViews.includes(view)) {
     return (
       <AppShell
         account={account}
+        dark={dark}
         internships={internships}
         navigate={navigate}
         notices={notices}
+        onAvatarUpdate={handleAvatarUpdate}
         onCreateInternship={handleCreateInternship}
         onCreateProject={handleCreateProject}
         onJoinProject={handleJoinProject}
@@ -2631,6 +3004,7 @@ export default function App() {
         onReadNotices={handleReadNotices}
         onRequestDecision={handleRequestDecision}
         onSaveProfile={handleSaveProfile}
+        onToggleTheme={toggleTheme}
         projects={projects}
         view="dashboard"
       />
@@ -2638,16 +3012,33 @@ export default function App() {
   }
 
   if (view === "signup") {
-    return <Signup navigate={navigate} onAccountCreated={handleAccountCreated} />;
+    return (
+      <Signup
+        dark={dark}
+        navigate={navigate}
+        onAccountCreated={handleAccountCreated}
+        onToggleTheme={toggleTheme}
+      />
+    );
   }
   if (view === "login") {
-    return <Login navigate={navigate} onLoginSuccess={handleLoginSuccess} />;
+    return (
+      <Login
+        dark={dark}
+        inactivityNotice={inactivityNotice}
+        navigate={navigate}
+        onLoginSuccess={handleLoginSuccess}
+        onToggleTheme={toggleTheme}
+      />
+    );
   }
   if (view === "verify") {
     return (
       <Verify
         account={account}
+        dark={dark}
         navigate={navigate}
+        onToggleTheme={toggleTheme}
         onVerified={() => {
           if (account) setAccount({ ...account, verified: true });
         }}
@@ -2655,15 +3046,16 @@ export default function App() {
     );
   }
   if (view === "forgot") {
-    return <ForgotPassword navigate={navigate} />;
+    return <ForgotPassword dark={dark} navigate={navigate} onToggleTheme={toggleTheme} />;
   }
   if (view === "reset") {
-    return <ResetPassword navigate={navigate} />;
+    return <ResetPassword dark={dark} navigate={navigate} onToggleTheme={toggleTheme} />;
   }
   if (view === "onboarding" && account) {
     return (
       <Onboarding
         account={account}
+        dark={dark}
         onSave={async (changes) => {
           await handleSaveProfile(changes);
           navigate("dashboard");
@@ -2672,6 +3064,7 @@ export default function App() {
           await handleSaveProfile({ onboardingSkipped: true });
           navigate("dashboard");
         }}
+        onToggleTheme={toggleTheme}
       />
     );
   }
@@ -2679,9 +3072,11 @@ export default function App() {
     return (
       <AppShell
         account={account}
+        dark={dark}
         internships={internships}
         navigate={navigate}
         notices={notices}
+        onAvatarUpdate={handleAvatarUpdate}
         onCreateInternship={handleCreateInternship}
         onCreateProject={handleCreateProject}
         onJoinProject={handleJoinProject}
@@ -2689,11 +3084,12 @@ export default function App() {
         onReadNotices={handleReadNotices}
         onRequestDecision={handleRequestDecision}
         onSaveProfile={handleSaveProfile}
+        onToggleTheme={toggleTheme}
         projects={projects}
         view={view}
       />
     );
   }
 
-  return <Landing navigate={navigate} />;
+  return <Landing dark={dark} navigate={navigate} onToggleTheme={toggleTheme} />;
 }

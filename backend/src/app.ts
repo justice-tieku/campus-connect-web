@@ -1,4 +1,5 @@
 import express from "express";
+import path from "node:path";
 import cors from "cors";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
@@ -21,7 +22,11 @@ export function createApp() {
   const clientOriginEnv = process.env.CLIENT_ORIGIN || "http://localhost:5173";
   const allowedOrigins = clientOriginEnv.split(",").map((o) => o.trim());
 
-  app.use(helmet());
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: { policy: "cross-origin" },
+    }),
+  );
   app.use(
     cors({
       origin: (requestOrigin, callback) => {
@@ -42,6 +47,9 @@ export function createApp() {
   );
   app.use(express.json({ limit: "100kb" }));
   app.use(cookieParser());
+
+  // Serve static uploads (e.g. avatar images)
+  app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
   app.get("/api/health", (_req, res) => {
     res.json({ ok: true });

@@ -808,3 +808,146 @@ footer small { color: #9ca29f; }
 [data-theme="dark"] .topbar-user { color: var(--ink); }
 
 
+
+/* Inactivity Alert */
+.inactivity-alert {
+  align-items: flex-start;
+  background: #fdf5e8;
+  border: 1px solid #f6cf92;
+  border-radius: 6px;
+  color: #8f5809;
+  display: flex;
+  font-size: 11px;
+  gap: 12px;
+  margin: 0 0 22px;
+  padding: 13px 15px;
+  line-height: 1.5;
+  animation: fadeIn 0.25s ease-out;
+}
+.inactivity-alert strong {
+  display: block;
+  font-size: 11px;
+  margin-bottom: 2px;
+}
+.inactivity-alert p {
+  margin: 0;
+  color: inherit;
+  font-size: 10px;
+}
+.inactivity-alert svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: #d97706;
+}
+
+/* Comprehensive Dark Mode Typography & Surfaces */
+[data-theme="dark"] .hero h1,
+.dark .hero h1,
+[data-theme="dark"] .onboarding-heading h1,
+.dark .onboarding-heading h1,
+[data-theme="dark"] .app-heading h1,
+.dark .app-heading h1,
+[data-theme="dark"] .marketplace-heading h1,
+.dark .marketplace-heading h1,
+[data-theme="dark"] .profile-title h1,
+.dark .profile-title h1,
+[data-theme="dark"] .auth-form h1,
+.dark .auth-form h1,
+[data-theme="dark"] .verify-main h1,
+.dark .verify-main h1,
+[data-theme="dark"] .recovery-main h1,
+.dark .recovery-main h1,
+[data-theme="dark"] .steps-grid h3,
+.dark .steps-grid h3,
+[data-theme="dark"] .section-heading h2,
+.dark .section-heading h2,
+[data-theme="dark"] .panel-title h2,
+.dark .panel-title h2,
+[data-theme="dark"] .empty-feed h2,
+.dark .empty-feed h2,
+[data-theme="dark"] .placeholder-page h2,
+.dark .placeholder-page h2,
+[data-theme="dark"] .cta-section h2,
+.dark .cta-section h2 {
+  color: var(--ink);
+}
+
+[data-theme="dark"] .hero-copy > p,
+.dark .hero-copy > p,
+[data-theme="dark"] .eyebrow,
+.dark .eyebrow,
+[data-theme="dark"] .member-proof p,
+.dark .member-proof p {
+  color: var(--muted);
+}
+
+[data-theme="dark"] .member-proof strong,
+.dark .member-proof strong {
+  color: var(--ink);
+}
+
+[data-theme="dark"] .site-header,
+.dark .site-header,
+[data-theme="dark"] .app-topbar,
+.dark .app-topbar,
+[data-theme="dark"] .auth-page,
+.dark .auth-page,
+[data-theme="dark"] footer,
+.dark footer {
+  background: var(--paper);
+  border-color: var(--line);
+}
+
+[data-theme="dark"] .desktop-nav button,
+.dark .desktop-nav button {
+  color: var(--muted);
+}
+[data-theme="dark"] .desktop-nav button:hover,
+.dark .desktop-nav button:hover {
+  color: var(--ink);
+}
+
+[data-theme="dark"] .text-button,
+.dark .text-button {
+  color: var(--ink);
+}
+
+[data-theme="dark"] .inactivity-alert,
+.dark .inactivity-alert {
+  background: #271a0d;
+  border-color: #6c4210;
+  color: #f7b968;
+}
+[data-theme="dark"] .inactivity-alert svg,
+.dark .inactivity-alert svg {
+  color: #fbbf24;
+}
+
+[data-theme="dark"] .project-card,
+.dark .project-card {
+  background: var(--card-bg);
+  border: 1px solid var(--line);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+}
+
+[data-theme="dark"] .match-pill,
+.dark .match-pill {
+  background: var(--card-bg);
+  border: 1px solid var(--line);
+  color: var(--ink);
+}
+
+[data-theme="dark"] .how-section,
+.dark .how-section {
+  background: var(--paper);
+}
+
+[data-theme="dark"] .steps-grid article,
+.dark .steps-grid article {
+  border-color: var(--line);
+}
+
+[data-theme="dark"] .step-number,
+.dark .step-number {
+  color: var(--muted);
+}
