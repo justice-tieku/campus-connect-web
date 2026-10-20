@@ -1708,35 +1708,35 @@ function OmniSearchModal({
             onClick={() => setCategory("All")}
             type="button"
           >
-            ✨ All ({totalResults})
+            All ({totalResults})
           </button>
           <button
             className={`omni-tab-pill ${category === "Mentors" ? "active" : ""}`}
             onClick={() => setCategory("Mentors")}
             type="button"
           >
-            🎓 Mentors ({matchedMentors.length})
+            Mentors ({matchedMentors.length})
           </button>
           <button
             className={`omni-tab-pill ${category === "Courses" ? "active" : ""}`}
             onClick={() => setCategory("Courses")}
             type="button"
           >
-            📚 Courses ({matchedCourses.length})
+            Courses ({matchedCourses.length})
           </button>
           <button
             className={`omni-tab-pill ${category === "Projects" ? "active" : ""}`}
             onClick={() => setCategory("Projects")}
             type="button"
           >
-            👥 Projects ({matchedProjects.length})
+            Projects ({matchedProjects.length})
           </button>
           <button
             className={`omni-tab-pill ${category === "Internships" ? "active" : ""}`}
             onClick={() => setCategory("Internships")}
             type="button"
           >
-            💼 Internships ({matchedInternships.length})
+            Internships ({matchedInternships.length})
           </button>
         </div>
 
@@ -1896,7 +1896,9 @@ function CreateSheetModal({
             }}
             type="button"
           >
-            <div className="create-option-icon project">👥</div>
+            <div className="create-option-icon project">
+              <ProjectsNavIcon active />
+            </div>
             <div className="create-option-text">
               <h3>Start a Student Project</h3>
               <p>Assemble teammates, recruit co-builders, and build together.</p>
@@ -1912,7 +1914,9 @@ function CreateSheetModal({
             }}
             type="button"
           >
-            <div className="create-option-icon internship">💼</div>
+            <div className="create-option-icon internship">
+              <JobsNavIcon active />
+            </div>
             <div className="create-option-text">
               <h3>Post an Internship or Job</h3>
               <p>
@@ -2108,7 +2112,12 @@ function AppShell({
           )}
 
           {view === "profile" ? (
-            <Profile account={account} onAvatarUpdate={onAvatarUpdate} onSave={onSaveProfile} />
+            <Profile
+              account={account}
+              onAvatarUpdate={onAvatarUpdate}
+              onSave={onSaveProfile}
+              onLogout={onLogout}
+            />
           ) : view === "projects" ? (
             <ProjectsHub
               account={account}
@@ -3030,10 +3039,12 @@ function Profile({
   account,
   onSave,
   onAvatarUpdate,
+  onLogout,
 }: {
   account: UserAccount;
   onSave: (profile: Partial<UserAccount>) => Promise<void>;
   onAvatarUpdate: (imageUrl: string) => void;
+  onLogout?: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(account);
@@ -3123,11 +3134,27 @@ function Profile({
           <h1>Profile</h1>
           <p>Keep your details current so people can find the right collaborator.</p>
         </div>
-        {!editing && (
-          <button className="button button-dark" onClick={() => setEditing(true)} type="button">
-            Edit profile
-          </button>
-        )}
+        <div className="profile-title-actions">
+          {!editing && (
+            <button className="button button-dark" onClick={() => setEditing(true)} type="button">
+              Edit profile
+            </button>
+          )}
+          {onLogout && (
+            <button className="profile-logout-btn" onClick={onLogout} type="button">
+              <Icon size={16}>
+                <path
+                  d="M10 17l5-5-5-5M15 12H3M15 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="1.8"
+                />
+              </Icon>
+              Log out
+            </button>
+          )}
+        </div>
       </div>
       <form className="profile-card" onSubmit={save}>
         <div className="profile-avatar-wrap">
