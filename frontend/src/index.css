@@ -2123,3 +2123,432 @@ footer small { color: #9ca29f; }
 [data-theme="dark"] .chat-message-bubble-wrap.incoming .chat-message-bubble { background: #0b181e; border-color: var(--line); }
 [data-theme="dark"] .chat-messages-scroll { background: #0d1a20; }
 
+
+
+/* =========================================================
+   PUBLIC USER PROFILE MODAL & PEOPLE SEARCH (LINKEDIN STYLE)
+   ========================================================= */
+
+.profile-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 26, 28, 0.65);
+  backdrop-filter: blur(5px);
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: modalFadeIn 0.2s ease-out;
+}
+
+.profile-modal-card {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  width: 100%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 50px rgba(0, 0, 0, 0.22);
+}
+
+.profile-modal-banner {
+  height: 110px;
+  background: linear-gradient(135deg, var(--navy) 0%, #17383a 100%);
+  position: relative;
+  flex-shrink: 0;
+}
+
+.profile-modal-close-btn {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.35);
+  border: 0;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, transform 0.15s;
+}
+.profile-modal-close-btn:hover {
+  background: rgba(0, 0, 0, 0.55);
+  transform: scale(1.05);
+}
+
+.profile-modal-body {
+  padding: 0 24px 28px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.profile-modal-header-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-top: -46px;
+  margin-bottom: 16px;
+  gap: 16px;
+}
+
+.profile-modal-avatar-wrap {
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  background: var(--paper);
+  border: 4px solid var(--paper);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: visible;
+}
+
+.profile-modal-avatar-img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.profile-modal-avatar-initials {
+  font-family: var(--font-heading);
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--navy);
+}
+
+.profile-modal-status-dot {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #10b981;
+  border: 2.5px solid var(--paper);
+}
+
+.profile-modal-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.profile-modal-msg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 8px;
+}
+
+.profile-modal-meta {
+  margin-bottom: 22px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 20px;
+}
+
+.profile-modal-name-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.profile-modal-name {
+  font-family: var(--font-heading);
+  font-size: 24px;
+  color: var(--ink);
+  margin: 0;
+  line-height: 1.2;
+}
+
+.profile-modal-role-badge {
+  background: rgba(224, 90, 71, 0.12);
+  color: var(--coral);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 12px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.profile-modal-programme {
+  font-size: 14px;
+  color: var(--ink);
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+
+.profile-modal-university {
+  font-size: 13px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 12px;
+}
+
+.profile-modal-links-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.profile-modal-link-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 20px;
+  background: var(--cream);
+  border: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--ink);
+  text-decoration: none;
+  font-weight: 600;
+  transition: border-color 0.15s, background 0.15s;
+}
+.profile-modal-link-pill:hover {
+  border-color: var(--coral);
+  color: var(--coral);
+}
+
+.profile-modal-avail-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: #059669;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  padding: 4px 10px;
+  border-radius: 20px;
+}
+
+.profile-modal-section {
+  margin-bottom: 22px;
+}
+
+.profile-modal-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin: 0 0 10px;
+}
+
+.profile-modal-bio {
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--ink);
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.profile-modal-skills-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.profile-modal-skill-chip {
+  background: var(--cream);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 6px;
+}
+
+.profile-modal-exp-text {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+  margin: 0;
+}
+
+.profile-modal-projects-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.profile-modal-project-card {
+  background: var(--cream);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.profile-modal-proj-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.profile-modal-proj-cat {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.profile-modal-proj-status {
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 10px;
+}
+.profile-modal-proj-status.open { background: #ecfdf5; color: #047857; }
+.profile-modal-proj-status.in-progress { background: #eff6ff; color: #1d4ed8; }
+.profile-modal-proj-status.completed { background: #f3f4f6; color: #4b5563; }
+
+.profile-modal-proj-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0;
+  line-height: 1.35;
+}
+
+.profile-modal-loading,
+.profile-modal-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
+  gap: 14px;
+}
+
+.profile-modal-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--line);
+  border-top-color: var(--coral);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* OmniSearch People Item Styles */
+.omni-person-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.omni-person-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--navy);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.omni-person-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.omni-type-pill.person {
+  background: rgba(16, 185, 129, 0.12);
+  color: #059669;
+}
+
+.omni-role-tag {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  background: var(--cream);
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 6px;
+}
+
+.omni-action-hint {
+  font-size: 11px;
+  color: var(--coral);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+/* Project Owner Clickable Link */
+.project-owner-btn {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: 700;
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+  transition: color 0.15s;
+}
+.project-owner-btn:hover {
+  color: var(--coral);
+  text-decoration: underline;
+}
+
+/* Dark mode for profile modal */
+[data-theme="dark"] .profile-modal-card {
+  background: #0f1e23;
+  border-color: var(--line);
+}
+[data-theme="dark"] .profile-modal-avatar-wrap {
+  background: #0f1e23;
+  border-color: #0f1e23;
+}
+[data-theme="dark"] .profile-modal-avatar-initials {
+  color: #e5f0f0;
+}
+[data-theme="dark"] .profile-modal-link-pill {
+  background: #0b181e;
+  border-color: var(--line);
+  color: #e5f0f0;
+}
+[data-theme="dark"] .profile-modal-skill-chip {
+  background: #0b181e;
+  border-color: var(--line);
+  color: #e5f0f0;
+}
+[data-theme="dark"] .profile-modal-project-card {
+  background: #0b181e;
+  border-color: var(--line);
+}
+[data-theme="dark"] .profile-modal-avail-badge {
+  background: rgba(5, 150, 105, 0.15);
+  border-color: rgba(5, 150, 105, 0.3);
+  color: #34d399;
+}
+[data-theme="dark"] .omni-role-tag {
+  background: #0b181e;
+  color: #9badb0;
+}

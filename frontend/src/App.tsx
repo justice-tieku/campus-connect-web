@@ -15,6 +15,8 @@ import {
   type ConversationItem,
   type DirectMessage,
   type ChatCounterparty,
+  type DirectoryPerson,
+  type PublicUserProfile,
 } from "./api";
 
 export type View =
@@ -1574,7 +1576,289 @@ function JobsNavIcon({ active }: { active?: boolean }) {
 }
 
 
-type SearchCategory = "All" | "Projects" | "Mentors" | "Courses" | "Internships";
+function PublicProfileModal({
+  userId,
+  isOpen,
+  onClose,
+  onStartMessage,
+  currentUserId,
+}: {
+  userId: string | null;
+  isOpen: boolean;
+  onClose: () => void;
+  onStartMessage: (targetUserId: string) => void;
+  currentUserId?: string;
+}) {
+  const [profile, setProfile] = useState<PublicUserProfile | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isOpen || !userId) {
+      setProfile(null);
+      setError(null);
+      return;
+    }
+
+    let active = true;
+    setLoading(true);
+    setError(null);
+
+    api
+      .getPublicProfile(userId)
+      .then((res) => {
+        if (active && res.profile) {
+          setProfile(res.profile);
+        }
+      })
+      .catch((err) => {
+        if (active) {
+          setError(err?.message || "Failed to load member profile.");
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [isOpen, userId]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    if (isOpen) {
+      window.addEventListener("keydown", handleKeyDown);
+    }
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
+
+  if (!isOpen || !userId) return null;
+
+  const initials = profile?.name
+    ? profile.name
+        .split(" ")
+        .map((p) => p[0])
+        .filter(Boolean)
+        .slice(0, 2)
+        .join("")
+        .toUpperCase()
+    : "CC";
+
+  const isSelf = Boolean(currentUserId && currentUserId === userId);
+
+  return (
+    <div className="profile-modal-backdrop" onClick={onClose}>
+      <div className="profile-modal-card" onClick={(e) => e.stopPropagation()}>
+        <div className="profile-modal-banner">
+          <button
+            className="profile-modal-close-btn"
+            onClick={onClose}
+            type="button"
+            aria-label="Close Profile"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+              <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="profile-modal-body">
+          {loading ? (
+            <div className="profile-modal-loading">
+              <div className="profile-modal-spinner" />
+              <p>Loading member profile...</p>
+            </div>
+          ) : error || !profile ? (
+            <div className="profile-modal-error">
+              <p>{error || "Unable to display this profile."}</p>
+              <button className="button button-outline" onClick={onClose} type="button">
+                Close
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="profile-modal-header-row">
+                <div className="profile-modal-avatar-wrap">
+                  {profile.imageUrl ? (
+                    <img
+                      src={resolveImageUrl(profile.imageUrl)}
+                      alt={profile.name}
+                      className="profile-modal-avatar-img"
+                    />
+                  ) : (
+                    <span className="profile-modal-avatar-initials">{initials}</span>
+                  )}
+                  <span className="profile-modal-status-dot" title="Active on Campus Connect" />
+                </div>
+
+                <div className="profile-modal-actions">
+                  {!isSelf && (
+                    <button
+                      className="button button-primary profile-modal-msg-btn"
+                      onClick={() => {
+                        onClose();
+                        onStartMessage(profile.id);
+                      }}
+                      type="button"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path
+                          d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                      Direct Message
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="profile-modal-meta">
+                <div className="profile-modal-name-row">
+                  <h2 className="profile-modal-name">{profile.name}</h2>
+                  <span className="profile-modal-role-badge">{profile.role}</span>
+                </div>
+
+                {profile.programme && (
+                  <p className="profile-modal-programme">{profile.programme}</p>
+                )}
+
+                {profile.university && (
+                  <p className="profile-modal-university">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M22 10v6M2 10l10-5 10 5-10 5z" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M6 12v5c3 3 9 3 12 0v-5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    {profile.university}
+                  </p>
+                )}
+
+                <div className="profile-modal-links-row">
+                  {profile.github && (
+                    <a
+                      href={profile.github}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="profile-modal-link-pill"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path
+                          d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                      GitHub
+                    </a>
+                  )}
+                  {profile.portfolio && (
+                    <a
+                      href={profile.portfolio}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="profile-modal-link-pill"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="2" y1="12" x2="22" y2="12" />
+                        <path
+                          d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                      Portfolio
+                    </a>
+                  )}
+                  {profile.availability && (
+                    <span className="profile-modal-avail-badge">
+                      Available: {profile.availability}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {profile.bio && (
+                <div className="profile-modal-section">
+                  <h4 className="profile-modal-section-title">About</h4>
+                  <p className="profile-modal-bio">{profile.bio}</p>
+                </div>
+              )}
+
+              {profile.skills && profile.skills.length > 0 && (
+                <div className="profile-modal-section">
+                  <h4 className="profile-modal-section-title">Skills & Expertise</h4>
+                  <div className="profile-modal-skills-list">
+                    {profile.skills.map((s, idx) => (
+                      <span key={`${s}-${idx}`} className="profile-modal-skill-chip">
+                        {s}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {profile.experience && (
+                <div className="profile-modal-section">
+                  <h4 className="profile-modal-section-title">Experience Level</h4>
+                  <p className="profile-modal-exp-text">{profile.experience}</p>
+                </div>
+              )}
+
+              {profile.createdProjects && profile.createdProjects.length > 0 && (
+                <div className="profile-modal-section">
+                  <h4 className="profile-modal-section-title">
+                    Created Projects ({profile.createdProjects.length})
+                  </h4>
+                  <div className="profile-modal-projects-grid">
+                    {profile.createdProjects.map((proj) => (
+                      <div key={proj.id} className="profile-modal-project-card">
+                        <div className="profile-modal-proj-top">
+                          <span className="profile-modal-proj-cat">{proj.category}</span>
+                          <span
+                            className={`profile-modal-proj-status ${proj.status.toLowerCase().replace(/\s+/g, "-")}`}
+                          >
+                            {proj.status}
+                          </span>
+                        </div>
+                        <h5 className="profile-modal-proj-title">{proj.title}</h5>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {profile.memberships && profile.memberships.length > 0 && (
+                <div className="profile-modal-section">
+                  <h4 className="profile-modal-section-title">
+                    Project Collaborations ({profile.memberships.length})
+                  </h4>
+                  <div className="profile-modal-projects-grid">
+                    {profile.memberships.map((mem, idx) => (
+                      <div key={mem.id || `mem-${idx}`} className="profile-modal-project-card">
+                        <div className="profile-modal-proj-top">
+                          <span className="profile-modal-proj-cat">{mem.category || "Project"}</span>
+                          <span className="profile-modal-proj-status open">Member</span>
+                        </div>
+                        <h5 className="profile-modal-proj-title">{mem.title}</h5>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type SearchCategory = "All" | "People" | "Projects" | "Mentors" | "Courses" | "Internships";
 
 function OmniSearchModal({
   isOpen,
@@ -1582,15 +1866,18 @@ function OmniSearchModal({
   projects,
   internships,
   navigate,
+  onOpenProfile,
 }: {
   isOpen: boolean;
   onClose: () => void;
   projects: Project[];
   internships: Internship[];
   navigate: (view: View) => void;
+  onOpenProfile: (userId: string) => void;
 }) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<SearchCategory>("All");
+  const [people, setPeople] = useState<DirectoryPerson[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -1598,6 +1885,22 @@ function OmniSearchModal({
       setTimeout(() => inputRef.current?.focus(), 60);
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let active = true;
+    api
+      .getDirectory({ q: query.trim() })
+      .then((res) => {
+        if (active && res.people) {
+          setPeople(res.people);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [isOpen, query]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1654,6 +1957,7 @@ function OmniSearchModal({
   }, [internships, q]);
 
   const totalResults =
+    people.length +
     matchedProjects.length +
     matchedMentors.length +
     matchedCourses.length +
@@ -1674,7 +1978,7 @@ function OmniSearchModal({
           <input
             ref={inputRef}
             className="omni-search-header-input"
-            placeholder="Search mentors, courses, projects, internships..."
+            placeholder="Search people, projects, jobs, mentors, courses..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
@@ -1709,18 +2013,11 @@ function OmniSearchModal({
             All ({totalResults})
           </button>
           <button
-            className={`omni-tab-pill ${category === "Mentors" ? "active" : ""}`}
-            onClick={() => setCategory("Mentors")}
+            className={`omni-tab-pill ${category === "People" ? "active" : ""}`}
+            onClick={() => setCategory("People")}
             type="button"
           >
-            Mentors ({matchedMentors.length})
-          </button>
-          <button
-            className={`omni-tab-pill ${category === "Courses" ? "active" : ""}`}
-            onClick={() => setCategory("Courses")}
-            type="button"
-          >
-            Courses ({matchedCourses.length})
+            People ({people.length})
           </button>
           <button
             className={`omni-tab-pill ${category === "Projects" ? "active" : ""}`}
@@ -1734,7 +2031,21 @@ function OmniSearchModal({
             onClick={() => setCategory("Internships")}
             type="button"
           >
-            Internships ({matchedInternships.length})
+            Jobs ({matchedInternships.length})
+          </button>
+          <button
+            className={`omni-tab-pill ${category === "Mentors" ? "active" : ""}`}
+            onClick={() => setCategory("Mentors")}
+            type="button"
+          >
+            Mentors ({matchedMentors.length})
+          </button>
+          <button
+            className={`omni-tab-pill ${category === "Courses" ? "active" : ""}`}
+            onClick={() => setCategory("Courses")}
+            type="button"
+          >
+            Courses ({matchedCourses.length})
           </button>
         </div>
 
@@ -1742,9 +2053,55 @@ function OmniSearchModal({
           {totalResults === 0 && (
             <div className="omni-empty-state">
               <p>No results found matching "{query}".</p>
-              <small>Try searching for topics like "React", "Python", "Figma", or "AI".</small>
+              <small>Try searching by person's name, university, or skills like "React", "Python", "Figma".</small>
             </div>
           )}
+
+          {/* People Section */}
+          {(category === "All" || category === "People") &&
+            people.map((person) => {
+              const pInitials = person.name
+                .split(" ")
+                .map((p) => p[0])
+                .filter(Boolean)
+                .slice(0, 2)
+                .join("")
+                .toUpperCase() || "CC";
+              return (
+                <button
+                  key={`person-${person.id}`}
+                  className="omni-result-card omni-person-card"
+                  onClick={() => {
+                    onClose();
+                    onOpenProfile(person.id);
+                  }}
+                  type="button"
+                >
+                  <div className="omni-person-avatar">
+                    {person.imageUrl ? (
+                      <img src={resolveImageUrl(person.imageUrl)} alt={person.name} />
+                    ) : (
+                      <span>{pInitials}</span>
+                    )}
+                  </div>
+                  <div className="omni-result-main">
+                    <div className="omni-result-top">
+                      <span className="omni-type-pill person">Member</span>
+                      <strong className="omni-result-title">{person.name}</strong>
+                      <span className="omni-role-tag">{person.role}</span>
+                    </div>
+                    <span className="omni-result-detail">
+                      {person.programme ? `${person.programme} · ` : ""}
+                      {person.university || "Campus Member"}
+                      {person.skills && person.skills.length > 0
+                        ? ` · ${person.skills.slice(0, 3).join(", ")}`
+                        : ""}
+                    </span>
+                  </div>
+                  <span className="omni-action-hint">View Profile</span>
+                </button>
+              );
+            })}
 
           {(category === "All" || category === "Mentors") &&
             matchedMentors.map((mentor) => (
@@ -1980,6 +2337,13 @@ function AppShell({
   const [autoOpenInternshipCreate, setAutoOpenInternshipCreate] = useState(false);
   const [chatTargetUserId, setChatTargetUserId] = useState<string | null>(null);
   const [unreadMsgCount, setUnreadMsgCount] = useState(0);
+  const [selectedProfileUserId, setSelectedProfileUserId] = useState<string | null>(null);
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
+
+  const handleOpenProfile = (targetId: string) => {
+    setSelectedProfileUserId(targetId);
+    setProfileModalOpen(true);
+  };
 
   useEffect(() => {
     const fetchUnreadMsg = async () => {
@@ -2240,6 +2604,7 @@ function AppShell({
               onJoin={onJoinProject}
               projects={projects}
               autoOpenCreate={autoOpenProjectCreate}
+              onOpenProfile={handleOpenProfile}
             />
           ) : view === "internships" ? (
             <InternshipsPage
@@ -2257,6 +2622,7 @@ function AppShell({
               account={account}
               targetUserId={chatTargetUserId}
               onClearTarget={() => setChatTargetUserId(null)}
+              onOpenProfile={handleOpenProfile}
             />
           ) : view === "notifications" ? (
             <NotificationsPage notices={notices} onRead={onReadNotices} />
@@ -2401,6 +2767,22 @@ function AppShell({
         projects={projects}
         internships={internships}
         navigate={navigate}
+        onOpenProfile={handleOpenProfile}
+      />
+
+      {/* Member Public Profile Modal */}
+      <PublicProfileModal
+        userId={selectedProfileUserId}
+        isOpen={profileModalOpen}
+        onClose={() => {
+          setProfileModalOpen(false);
+          setSelectedProfileUserId(null);
+        }}
+        onStartMessage={(targetUserId) => {
+          setChatTargetUserId(targetUserId);
+          navigate("messages");
+        }}
+        currentUserId={account.id}
       />
 
       {/* Create (+) Action Sheet Modal */}
@@ -2428,6 +2810,7 @@ function ProjectsHub({
   onJoin,
   onDecision,
   autoOpenCreate,
+  onOpenProfile,
 }: {
   account: UserAccount;
   projects: Project[];
@@ -2439,6 +2822,7 @@ function ProjectsHub({
     decision: "accepted" | "declined",
   ) => Promise<void>;
   autoOpenCreate?: boolean;
+  onOpenProfile?: (userId: string) => void;
 }) {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("All");
@@ -2735,7 +3119,18 @@ function ProjectsHub({
               </div>
               <div className="listing-footer">
                 <div>
-                  <strong>{project.ownerName}</strong>
+                  {project.creatorId && onOpenProfile ? (
+                    <button
+                      type="button"
+                      className="project-owner-btn"
+                      onClick={() => onOpenProfile(project.creatorId!)}
+                      title={`View ${project.ownerName}'s public profile`}
+                    >
+                      {project.ownerName}
+                    </button>
+                  ) : (
+                    <strong>{project.ownerName}</strong>
+                  )}
                   <small>
                     {(project.members || []).length} of {project.teamSize} members
                   </small>
@@ -3128,10 +3523,12 @@ function MessagesPage({
   account,
   targetUserId,
   onClearTarget,
+  onOpenProfile,
 }: {
   account: UserAccount;
   targetUserId?: string | null;
   onClearTarget?: () => void;
+  onOpenProfile?: (userId: string) => void;
 }) {
   const [conversations, setConversations] = useState<ConversationItem[]>([]);
   const [activeUser, setActiveUser] = useState<ChatCounterparty | null>(null);
@@ -3350,7 +3747,12 @@ function MessagesPage({
                     <path d="M19 12H5M12 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 </button>
-                <div className="chat-header-user">
+                <div
+                  className="chat-header-user"
+                  onClick={() => onOpenProfile && activeUser && onOpenProfile(activeUser.id)}
+                  title={onOpenProfile ? `View ${activeUser.name}'s profile` : undefined}
+                  style={{ cursor: onOpenProfile ? "pointer" : "default" }}
+                >
                   <div className="chat-header-avatar">
                     {activeUser.imageUrl ? (
                       <img src={resolveImageUrl(activeUser.imageUrl)} alt={activeUser.name} />

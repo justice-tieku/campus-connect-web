@@ -22,6 +22,53 @@ export type UserAccount = {
   onboardingSkipped: boolean;
 };
 
+export type PublicProjectSummary = {
+  id: string;
+  title: string;
+  category: string;
+  status: string;
+  teamCapacity?: number;
+  roles?: string[];
+  requiredSkills?: string[];
+};
+
+export type PublicMembershipSummary = {
+  id?: string;
+  title?: string;
+  category?: string;
+  status?: string;
+};
+
+export type PublicUserProfile = {
+  id: string;
+  name: string;
+  role: string;
+  university: string;
+  programme?: string;
+  bio?: string;
+  skills: string[];
+  experience: string;
+  availability?: string;
+  github?: string;
+  portfolio?: string;
+  imageUrl?: string;
+  createdAt?: string;
+  createdProjects: PublicProjectSummary[];
+  memberships: PublicMembershipSummary[];
+};
+
+export type DirectoryPerson = {
+  id: string;
+  name: string;
+  role: string;
+  university: string;
+  programme?: string;
+  bio?: string;
+  skills: string[];
+  experience?: string;
+  imageUrl?: string;
+};
+
 export type JoinRequest = {
   id: string;
   applicantEmail: string;
@@ -331,6 +378,18 @@ export const api = {
     return request<{ ok: boolean; profile: any }>("/api/profile/avatar", {
       method: "DELETE",
     });
+  },
+
+  getPublicProfile: async (userId: string) => {
+    return request<{ profile: PublicUserProfile }>(`/api/profile/public/${userId}`);
+  },
+
+  getDirectory: async (params: { q?: string; skill?: string } = {}) => {
+    const search = new URLSearchParams();
+    if (params.q) search.set("q", params.q);
+    if (params.skill) search.set("skill", params.skill);
+    const query = search.toString() ? `?${search.toString()}` : "";
+    return request<{ people: DirectoryPerson[] }>(`/api/profile/directory${query}`);
   },
 
   listProjects: async (params: { q?: string; skill?: string; category?: string; status?: string } = {}) => {

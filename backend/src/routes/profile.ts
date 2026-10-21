@@ -79,6 +79,151 @@ function formatProfileResponse(profile: any, user?: any) {
   };
 }
 
+function formatPublicProfile(user: any) {
+  const profile = user.profile || {};
+  const name = `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email.split("@")[0];
+  return {
+    id: user.id,
+    name,
+    role: user.role,
+    university: profile.institution || user.institution || "",
+    programme: profile.programme || user.programme || "",
+    bio: profile.biography || "",
+    skills: profile.skills || [],
+    experience: profile.experience || "Beginner",
+    availability: profile.availability || "",
+    github: profile.githubLink || "",
+    portfolio: profile.portfolioLink || "",
+    imageUrl: profile.imageUrl || "",
+    createdAt: user.createdAt,
+    createdProjects: (user.createdProjects || []).map((p: any) => ({
+      id: p.id,
+      title: p.title,
+      category: p.category,
+      status: p.status,
+      teamCapacity: p.teamCapacity,
+      roles: p.roles || [],
+      requiredSkills: p.requiredSkills || [],
+    })),
+    memberships: (user.memberships || [])
+      .filter((m: any) => m.project)
+      .map((m: any) => ({
+        id: m.project.id,
+        title: m.project.title,
+        category: m.project.category,
+        status: m.project.status,
+      })),
+  };
+}
+
+// Search and list people/directory
+router.get(
+  "/directory",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const q = ((req.query.q as string) || "").trim();
+
+    const where: any = {
+      isActive: true,
+    };
+
+    if (q) {
+      where.OR = [
+        { firstName: { contains: q, mode: "insensitive" } },
+        { lastName: { contains: q, mode: "insensitive" } },
+        { email: { contains: q, mode: "insensitive" } },
+        { institution: { contains: q, mode: "insensitive" } },
+        { programme: { contains: q, mode: "insensitive" } },
+        {
+          profile: {
+            OR: [
+              { biography: { contains: q, mode: "insensitive" } },
+              { institution: { contains: q, mode: "insensitive" } },
+              { programme: { contains: q, mode: "insensitive" } },
+            ],
+          },
+        },
+      ];
+    }
+
+    const users = await prisma.user.findMany({
+      where,
+      include: {
+        profile: true,
+      },
+      take: 40,
+      orderBy: { createdAt: "desc" },
+    });
+
+    const people = users.map((u) => {
+      const p: any = u.profile || {};
+      const name = `${u.firstName || ""} ${u.lastName || ""}`.trim() || u.email.split("@")[0];
+      return {
+        id: u.id,
+        name,
+        role: u.role,
+        university: p.institution || u.institution || "",
+        programme: p.programme || u.programme || "",
+        bio: p.biography || "",
+        skills: p.skills || [],
+        experience: p.experience || "Beginner",
+        imageUrl: p.imageUrl || "",
+      };
+    });
+
+    res.json({ people });
+  }),
+);
+
+// Get a public user profile by ID
+router.get(
+  "/public/:userId",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const userId = req.params.userId as string;
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        profile: true,
+        createdProjects: {
+          select: {
+            id: true,
+            title: true,
+            category: true,
+            status: true,
+            teamCapacity: true,
+            roles: true,
+            requiredSkills: true,
+          },
+          orderBy: { createdAt: "desc" },
+          take: 8,
+        },
+        memberships: {
+          include: {
+            project: {
+              select: {
+                id: true,
+                title: true,
+                category: true,
+                status: true,
+              },
+            },
+          },
+          take: 8,
+        },
+      },
+    });
+
+    if (!user || !user.isActive) {
+      throw new HttpError(404, "User not found");
+    }
+
+    res.json({
+      profile: formatPublicProfile(user),
+    });
+  }),
+);
+
 router.get(
   "/me",
   requireAuth,
