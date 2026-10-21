@@ -12,6 +12,9 @@ import {
   type Notice,
   type Project,
   type UserAccount,
+  type ConversationItem,
+  type DirectMessage,
+  type ChatCounterparty,
 } from "./api";
 
 export type View =
@@ -28,7 +31,8 @@ export type View =
   | "mentors"
   | "courses"
   | "profile"
-  | "notifications";
+  | "notifications"
+  | "messages";
 
 const HERO_IMAGE =
   "https://images.unsplash.com/photo-1758270705317-3ef6142d306f?crop=entropy&cs=tinysrgb&fit=crop&fm=jpg&q=85&w=1400";
@@ -1568,13 +1572,6 @@ function JobsNavIcon({ active }: { active?: boolean }) {
   );
 }
 
-function BellNavIcon({ active }: { active?: boolean }) {
-  return (
-    <svg viewBox="0 0 24 24" fill={active ? "currentColor" : "none"} stroke="currentColor" strokeWidth={active ? "2" : "1.8"}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0" />
-    </svg>
-  );
-}
 
 type SearchCategory = "All" | "Projects" | "Mentors" | "Courses" | "Internships";
 
@@ -1980,6 +1977,22 @@ function AppShell({
   const [createSheetOpen, setCreateSheetOpen] = useState(false);
   const [autoOpenProjectCreate, setAutoOpenProjectCreate] = useState(false);
   const [autoOpenInternshipCreate, setAutoOpenInternshipCreate] = useState(false);
+  const [chatTargetUserId, setChatTargetUserId] = useState<string | null>(null);
+  const [unreadMsgCount, setUnreadMsgCount] = useState(0);
+
+  useEffect(() => {
+    const fetchUnreadMsg = async () => {
+      try {
+        const res = await api.getUnreadMessageCount();
+        if (typeof res?.count === "number") {
+          setUnreadMsgCount(res.count);
+        }
+      } catch (_) {}
+    };
+    void fetchUnreadMsg();
+    const interval = setInterval(fetchUnreadMsg, 10000);
+    return () => clearInterval(interval);
+  }, []);
 
   const firstName = account.name.split(" ")[0] || account.email.split("@")[0];
   const initials = account.name
@@ -1992,6 +2005,7 @@ function AppShell({
   const desktopNav: { label: string; view: View }[] = [
     { label: "Dashboard", view: "dashboard" },
     { label: "Projects", view: "projects" },
+    { label: "Messages", view: "messages" },
     { label: "Internships", view: "internships" },
     { label: "Mentors", view: "mentors" },
     { label: "Courses", view: "courses" },
@@ -2081,9 +2095,23 @@ function AppShell({
             </div>
           </div>
 
-          {/* Top-Right: Theme Toggle & Notifications */}
+          {/* Top-Right: Theme Toggle, Messages & Notifications */}
           <div className="topbar-actions-group">
             <ThemeToggle dark={dark} onToggle={onToggleTheme} />
+            <button
+              className="topbar-icon-btn"
+              onClick={() => navigate("messages")}
+              title="Messages"
+              type="button"
+              aria-label="Messages"
+            >
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              {unreadMsgCount > 0 && (
+                <span className="topbar-badge">{unreadMsgCount > 99 ? "99+" : unreadMsgCount}</span>
+              )}
+            </button>
             <button
               className="topbar-icon-btn"
               onClick={() => navigate("notifications")}
@@ -2138,6 +2166,12 @@ function AppShell({
             <MentorsPage />
           ) : view === "courses" ? (
             <CoursesPage />
+          ) : view === "messages" ? (
+            <MessagesPage
+              account={account}
+              targetUserId={chatTargetUserId}
+              onClearTarget={() => setChatTargetUserId(null)}
+            />
           ) : view === "notifications" ? (
             <NotificationsPage notices={notices} onRead={onReadNotices} />
           ) : view === "dashboard" ? (
@@ -2256,19 +2290,21 @@ function AppShell({
         </button>
 
         <button
-          className={`bottom-nav-item ${view === "notifications" ? "active" : ""}`}
-          onClick={() => navigate("notifications")}
+          className={`bottom-nav-item ${view === "notifications" || view === "messages" ? "active" : ""}`}
+          onClick={() => navigate("messages")}
           type="button"
         >
           <div className="bottom-nav-icon-wrap">
-            <BellNavIcon active={view === "notifications"} />
-            {unreadNoticesCount > 0 && (
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={view === "messages" ? "2.4" : "1.9"}>
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            {unreadMsgCount > 0 && (
               <span className="bottom-nav-badge">
-                {unreadNoticesCount > 99 ? "99+" : unreadNoticesCount}
+                {unreadMsgCount > 99 ? "99+" : unreadMsgCount}
               </span>
             )}
           </div>
-          <span className="bottom-nav-label">Alerts</span>
+          <span className="bottom-nav-label">Messages</span>
         </button>
       </nav>
 
@@ -3002,6 +3038,323 @@ function NotificationsPage({
   );
 }
 
+function MessagesPage({
+  account,
+  targetUserId,
+  onClearTarget,
+}: {
+  account: UserAccount;
+  targetUserId?: string | null;
+  onClearTarget?: () => void;
+}) {
+  const [conversations, setConversations] = useState<ConversationItem[]>([]);
+  const [activeUser, setActiveUser] = useState<ChatCounterparty | null>(null);
+  const [messages, setMessages] = useState<DirectMessage[]>([]);
+  const [inputText, setInputText] = useState("");
+  const [loadingThreads, setLoadingThreads] = useState(true);
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [searchFilter, setSearchFilter] = useState("");
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const fetchConversations = async () => {
+    try {
+      const res = await api.getConversations();
+      if (res?.conversations) {
+        setConversations(res.conversations);
+      }
+    } catch (e) {
+      console.warn("Failed to fetch conversations:", e);
+    } finally {
+      setLoadingThreads(false);
+    }
+  };
+
+  const openThread = async (user: ChatCounterparty) => {
+    setActiveUser(user);
+    setLoadingMessages(true);
+    try {
+      const res = await api.getThread(user.id);
+      if (res) {
+        setActiveUser(res.counterparty);
+        setMessages(res.messages || []);
+      }
+    } catch (e) {
+      console.warn("Failed to load thread:", e);
+    } finally {
+      setLoadingMessages(false);
+      void fetchConversations();
+    }
+  };
+
+  useEffect(() => {
+    void fetchConversations();
+    const interval = setInterval(() => {
+      void fetchConversations();
+      if (activeUser?.id) {
+        void api.getThread(activeUser.id).then((res) => {
+          if (res?.messages) {
+            setMessages(res.messages);
+          }
+        });
+      }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [activeUser?.id]);
+
+  useEffect(() => {
+    if (targetUserId) {
+      void api.getThread(targetUserId).then((res) => {
+        if (res?.counterparty) {
+          setActiveUser(res.counterparty);
+          setMessages(res.messages || []);
+        }
+      });
+      if (onClearTarget) onClearTarget();
+    }
+  }, [targetUserId]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const handleSend = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inputText.trim() || !activeUser || sending) return;
+
+    const textToSend = inputText.trim();
+    setInputText("");
+    setSending(true);
+
+    const tempMsg: DirectMessage = {
+      id: "temp-" + Date.now(),
+      senderId: account.id,
+      receiverId: activeUser.id,
+      body: textToSend,
+      createdAt: new Date().toISOString(),
+      read: true,
+    };
+    setMessages((prev) => [...prev, tempMsg]);
+
+    try {
+      const res = await api.sendMessage(activeUser.id, textToSend);
+      if (res?.message) {
+        setMessages((prev) =>
+          prev.map((m) => (m.id === tempMsg.id ? res.message : m)),
+        );
+      }
+      void fetchConversations();
+    } catch (err: any) {
+      console.error("Failed to send message:", err);
+      setMessages((prev) => prev.filter((m) => m.id !== tempMsg.id));
+      alert(err.message || "Failed to send message.");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const filteredConversations = conversations.filter((c) =>
+    c.counterparty.name.toLowerCase().includes(searchFilter.toLowerCase()) ||
+    c.counterparty.email.toLowerCase().includes(searchFilter.toLowerCase()),
+  );
+
+  return (
+    <div className="messages-layout-page">
+      <div className="marketplace-heading">
+        <div>
+          <span className="form-kicker">COLLABORATION NETWORK</span>
+          <h1>Direct Messages</h1>
+          <p>Chat directly with student project partners, teammates, and mentors.</p>
+        </div>
+      </div>
+
+      <div className="chat-container-card">
+        {/* Left Side: Conversations List */}
+        <aside className={`chat-threads-sidebar ${activeUser ? "mobile-thread-hidden" : ""}`}>
+          <div className="chat-threads-header">
+            <h3>Conversations</h3>
+            <span className="chat-thread-badge">{conversations.length}</span>
+          </div>
+
+          <div className="chat-thread-search">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <input
+              placeholder="Search conversations..."
+              value={searchFilter}
+              onChange={(e) => setSearchFilter(e.target.value)}
+            />
+            {searchFilter && (
+              <button className="chat-search-clear" onClick={() => setSearchFilter("")} type="button">
+                ✕
+              </button>
+            )}
+          </div>
+
+          <div className="chat-threads-list">
+            {loadingThreads && conversations.length === 0 ? (
+              <div className="chat-threads-empty">Loading messages...</div>
+            ) : filteredConversations.length === 0 ? (
+              <div className="chat-threads-empty">
+                {searchFilter ? "No conversations match your search." : "No active chats yet. Connect with a project lead or mentor to start collaborating!"}
+              </div>
+            ) : (
+              filteredConversations.map((item) => {
+                const isActive = activeUser?.id === item.counterparty.id;
+                const initials =
+                  item.counterparty.name
+                    .split(" ")
+                    .map((p) => p[0])
+                    .filter(Boolean)
+                    .slice(0, 2)
+                    .join("") || "CC";
+                return (
+                  <button
+                    className={`chat-thread-item ${isActive ? "active" : ""} ${item.unreadCount > 0 ? "has-unread" : ""}`}
+                    key={item.counterparty.id}
+                    onClick={() => openThread(item.counterparty)}
+                    type="button"
+                  >
+                    <div className="chat-item-avatar">
+                      {item.counterparty.imageUrl ? (
+                        <img src={resolveImageUrl(item.counterparty.imageUrl)} alt={item.counterparty.name} />
+                      ) : (
+                        <span>{initials}</span>
+                      )}
+                      <span className="chat-online-dot" />
+                    </div>
+                    <div className="chat-item-info">
+                      <div className="chat-item-topline">
+                        <span className="chat-item-name">{item.counterparty.name}</span>
+                        <span className="chat-item-time">
+                          {new Date(item.lastMessage.createdAt).toLocaleDateString(undefined, {
+                            month: "short",
+                            day: "numeric",
+                          })}
+                        </span>
+                      </div>
+                      <div className="chat-item-preview-line">
+                        <span className="chat-item-preview">{item.lastMessage.body}</span>
+                        {item.unreadCount > 0 && (
+                          <span className="chat-unread-count">{item.unreadCount}</span>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </aside>
+
+        {/* Right Side: Active Conversation Area */}
+        <div className={`chat-conversation-area ${!activeUser ? "mobile-thread-hidden" : ""}`}>
+          {activeUser ? (
+            <>
+              <div className="chat-header-bar">
+                <button
+                  className="chat-back-mobile-btn"
+                  onClick={() => setActiveUser(null)}
+                  type="button"
+                  aria-label="Back to threads"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                    <path d="M19 12H5M12 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+                <div className="chat-header-user">
+                  <div className="chat-header-avatar">
+                    {activeUser.imageUrl ? (
+                      <img src={resolveImageUrl(activeUser.imageUrl)} alt={activeUser.name} />
+                    ) : (
+                      <span>
+                        {activeUser.name
+                          .split(" ")
+                          .map((p) => p[0])
+                          .slice(0, 2)
+                          .join("") || "CC"}
+                      </span>
+                    )}
+                  </div>
+                  <div>
+                    <h4>{activeUser.name}</h4>
+                    <p>{activeUser.institution || activeUser.email}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="chat-messages-scroll">
+                {loadingMessages ? (
+                  <div className="chat-loading-msg">Loading chat history...</div>
+                ) : messages.length === 0 ? (
+                  <div className="chat-empty-thread">
+                    <p>No messages yet with {activeUser.name}.</p>
+                    <small>Send a greeting to break the ice and discuss project collaboration!</small>
+                  </div>
+                ) : (
+                  messages.map((m) => {
+                    const isMe = m.senderId === account.id;
+                    return (
+                      <div
+                        className={`chat-message-bubble-wrap ${isMe ? "outgoing" : "incoming"}`}
+                        key={m.id}
+                      >
+                        <div className="chat-message-bubble">
+                          <p>{m.body}</p>
+                          <span className="chat-message-time">
+                            {new Date(m.createdAt).toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+
+              <form className="chat-input-bar" onSubmit={handleSend}>
+                <input
+                  placeholder={`Message ${activeUser.name}...`}
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  disabled={sending}
+                  autoFocus
+                />
+                <button
+                  className="chat-send-btn"
+                  disabled={!inputText.trim() || sending}
+                  type="submit"
+                  aria-label="Send message"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                    <line x1="22" y1="2" x2="11" y2="13" />
+                    <polygon points="22 2 15 22 11 13 2 9 22 2" fill="currentColor" />
+                  </svg>
+                </button>
+              </form>
+            </>
+          ) : (
+            <div className="chat-no-active-placeholder">
+              <div className="chat-placeholder-icon">
+                <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                </svg>
+              </div>
+              <h3>Select a Conversation</h3>
+              <p>Choose an existing thread or start a direct message with a project collaborator.</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PlaceholderPage({ view }: { view: View }) {
   const content: Record<string, [string, string]> = {
     projects: [
@@ -3604,6 +3957,7 @@ export default function App() {
     "courses",
     "profile",
     "notifications",
+    "messages",
   ];
   const visitorViews: View[] = ["signup", "login", "verify", "forgot", "reset"];
 

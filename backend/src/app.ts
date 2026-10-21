@@ -11,6 +11,7 @@ import opportunityRoutes from "./routes/opportunities";
 import adminRoutes from "./routes/admin";
 import reportRoutes from "./routes/reports";
 import notificationRoutes from "./routes/notifications";
+import messageRoutes from "./routes/messages";
 import { errorHandler, notFound } from "./middleware/error";
 import { resolveClientOrigin } from "./lib/auth";
 
@@ -67,10 +68,11 @@ export function createApp() {
   app.use("/api/admin", adminRoutes);
   app.use("/api/reports", reportRoutes);
   app.use("/api/notifications", notificationRoutes);
+  app.use("/api/messages", messageRoutes);
 
   // Catch non-API frontend route visits on backend domain and seamlessly redirect to frontend
   app.get(
-    ["/", "/dashboard", "/login", "/signup", "/verify", "/reset", "/forgot", "/onboarding", "/projects", "/internships", "/profile"],
+    ["/", "/dashboard", "/login", "/signup", "/verify", "/reset", "/forgot", "/onboarding", "/projects", "/internships", "/profile", "/messages"],
     (req, res) => {
       const origin = resolveClientOrigin(req);
       const query = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";

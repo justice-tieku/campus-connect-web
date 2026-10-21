@@ -39,10 +39,41 @@ export type Project = {
   roles: string[];
   teamSize: number;
   status: "Open" | "In progress" | "Completed";
+  creatorId?: string;
   ownerEmail: string;
   ownerName: string;
   members: string[];
   requests: JoinRequest[];
+};
+
+export type DirectMessage = {
+  id: string;
+  senderId: string;
+  receiverId: string;
+  body: string;
+  createdAt: string;
+  read: boolean;
+};
+
+export type ChatCounterparty = {
+  id: string;
+  email: string;
+  name: string;
+  imageUrl?: string | null;
+  institution?: string | null;
+  role: string;
+};
+
+export type ConversationItem = {
+  counterparty: ChatCounterparty;
+  lastMessage: {
+    id: string;
+    body: string;
+    createdAt: string;
+    senderId: string;
+    read: boolean;
+  };
+  unreadCount: number;
 };
 
 export type Internship = {
@@ -382,5 +413,26 @@ export const api = {
 
   markNotificationsRead: async () => {
     return request<{ ok: boolean }>("/api/notifications/read", { method: "PATCH" });
+  },
+
+  getConversations: async () => {
+    return request<{ conversations: ConversationItem[] }>("/api/messages/conversations");
+  },
+
+  getThread: async (otherUserId: string) => {
+    return request<{ counterparty: ChatCounterparty; messages: DirectMessage[] }>(
+      `/api/messages/thread/${otherUserId}`,
+    );
+  },
+
+  sendMessage: async (receiverId: string, body: string) => {
+    return request<{ message: DirectMessage }>("/api/messages", {
+      method: "POST",
+      body: JSON.stringify({ receiverId, body }),
+    });
+  },
+
+  getUnreadMessageCount: async () => {
+    return request<{ count: number }>("/api/messages/unread-count");
   },
 };

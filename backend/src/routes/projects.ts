@@ -114,6 +114,7 @@ function formatProjectForResponse(p: any) {
     techStack: p.requiredSkills || [],
     teamSize: p.teamCapacity,
     displayStatus: formatStatusOutput(p.status),
+    creatorId: p.creatorId || p.creator?.id || "",
     ownerEmail: p.creator?.email || "",
     ownerName,
     members: p.members || [],
