@@ -66,6 +66,7 @@ function routeFromHash(): View {
     "courses",
     "profile",
     "notifications",
+    "messages",
   ];
   return validRoutes.includes(target) ? target : "home";
 }
@@ -2002,19 +2003,97 @@ function AppShell({
     .slice(0, 2)
     .join("") || "CC";
 
-  const desktopNav: { label: string; view: View }[] = [
-    { label: "Dashboard", view: "dashboard" },
-    { label: "Projects", view: "projects" },
-    { label: "Messages", view: "messages" },
-    { label: "Internships", view: "internships" },
-    { label: "Mentors", view: "mentors" },
-    { label: "Courses", view: "courses" },
-    { label: "Profile", view: "profile" },
-    { label: "Notifications", view: "notifications" },
-  ];
-
   const openProjectsCount = projects.filter((p) => p.status === "Open").length;
   const unreadNoticesCount = notices.filter((n) => !n.read).length;
+
+  // Desktop sidebar nav — mirrors mobile bottom nav items + extended set
+  const desktopNavItems: { label: string; view: View; icon: ReactNode; badge?: number }[] = [
+    {
+      label: "Dashboard",
+      view: "dashboard",
+      icon: (
+        <svg viewBox="0 0 24 24" fill={view === "dashboard" ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="3" width="7" height="7" rx="1" />
+          <rect x="14" y="3" width="7" height="7" rx="1" />
+          <rect x="3" y="14" width="7" height="7" rx="1" />
+          <rect x="14" y="14" width="7" height="7" rx="1" />
+        </svg>
+      ),
+    },
+    {
+      label: "Projects",
+      view: "projects",
+      icon: (
+        <svg viewBox="0 0 24 24" fill={view === "projects" ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+        </svg>
+      ),
+      badge: openProjectsCount > 0 ? openProjectsCount : undefined,
+    },
+    {
+      label: "Jobs",
+      view: "internships",
+      icon: (
+        <svg viewBox="0 0 24 24" fill={view === "internships" ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="2" y="7" width="20" height="14" rx="2" />
+          <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2M2 12h20" />
+        </svg>
+      ),
+    },
+    {
+      label: "Mentors",
+      view: "mentors",
+      icon: (
+        <svg viewBox="0 0 24 24" fill={view === "mentors" ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 2a5 5 0 1 0 0 10A5 5 0 0 0 12 2z" />
+          <path d="M20 21a8 8 0 1 0-16 0" />
+          <path d="M16 11l2 2 4-4" />
+        </svg>
+      ),
+    },
+    {
+      label: "Courses",
+      view: "courses",
+      icon: (
+        <svg viewBox="0 0 24 24" fill={view === "courses" ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 2L2 7l10 5 10-5-10-5z" />
+          <path d="M2 17l10 5 10-5M2 12l10 5 10-5" />
+        </svg>
+      ),
+    },
+    {
+      label: "Messages",
+      view: "messages",
+      icon: (
+        <svg viewBox="0 0 24 24" fill={view === "messages" ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        </svg>
+      ),
+      badge: unreadMsgCount > 0 ? unreadMsgCount : undefined,
+    },
+    {
+      label: "Notifications",
+      view: "notifications",
+      icon: (
+        <svg viewBox="0 0 24 24" fill={view === "notifications" ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0" />
+        </svg>
+      ),
+      badge: unreadNoticesCount > 0 ? unreadNoticesCount : undefined,
+    },
+    {
+      label: "Profile",
+      view: "profile",
+      icon: (
+        <svg viewBox="0 0 24 24" fill={view === "profile" ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="8" r="4" />
+          <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
+        </svg>
+      ),
+    },
+  ];
 
   return (
     <div className="app-shell">
@@ -2022,15 +2101,22 @@ function AppShell({
       <aside className="app-sidebar">
         <Logo onClick={() => navigate("dashboard")} />
         <nav>
-          {desktopNav.map((item, index) => (
+          {desktopNavItems.map((item, index) => (
             <button
-              className={view === item.view ? "active" : ""}
+              className={`sidebar-nav-item ${view === item.view ? "active" : ""}`}
               key={`${item.label}-${index}`}
               onClick={() => navigate(item.view)}
               type="button"
             >
-              <span>{item.label.slice(0, 1)}</span>
-              {item.label}
+              <span className="sidebar-nav-icon">
+                {item.icon}
+                {item.badge !== undefined && item.badge > 0 && (
+                  <span className="sidebar-nav-badge">
+                    {item.badge > 99 ? "99+" : item.badge}
+                  </span>
+                )}
+              </span>
+              <span className="sidebar-nav-label">{item.label}</span>
             </button>
           ))}
         </nav>
@@ -2290,7 +2376,7 @@ function AppShell({
         </button>
 
         <button
-          className={`bottom-nav-item ${view === "notifications" || view === "messages" ? "active" : ""}`}
+          className={`bottom-nav-item ${view === "messages" ? "active" : ""}`}
           onClick={() => navigate("messages")}
           type="button"
         >
